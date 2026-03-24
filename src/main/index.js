@@ -73,8 +73,12 @@ app.whenReady().then(() => {
 
     for (const id of ids) {
       await new Promise((resolve, reject) => {
+        const nodeModulesPath = is.dev
+          ? join(__dirname, '../../node_modules')
+          : join(process.resourcesPath, 'app.asar/node_modules')
+
         const child = spawn(process.execPath, [scriptPath, id, downloadDir, headless ? '1' : '0'], {
-          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
         })
 
         child.stdout.on('data', (data) => {
