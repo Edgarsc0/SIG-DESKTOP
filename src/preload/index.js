@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
+  getVersion: () => ipcRenderer.invoke('get-version'),
   seleccionarCarpeta: () => ipcRenderer.invoke('seleccionar-carpeta'),
   iniciarDescarga: (ids, carpeta, headless) => ipcRenderer.invoke('iniciar-descarga', { ids, carpeta, headless }),
   onDescargaLog: (callback) => {

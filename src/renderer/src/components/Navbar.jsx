@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { FileDown, Home, Database, FileScan } from 'lucide-react'
 
@@ -13,6 +14,12 @@ const links = [
 ]
 
 function Navbar() {
+  const [version, setVersion] = useState('')
+
+  useEffect(() => {
+    window.api.getVersion().then(setVersion)
+  }, [])
+
   return (
     <aside className="w-16 hover:w-64 transition-all duration-300 ease-in-out group flex flex-col bg-slate-900 border-r border-white/5 h-screen shrink-0">
       {/* Logo */}
@@ -51,7 +58,7 @@ function Navbar() {
       {/* Versión */}
       <div className="px-4 py-4 border-t border-white/5">
         <span className="text-slate-600 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          v1.0.0
+          v{version}
         </span>
       </div>
     </aside>
