@@ -99,7 +99,7 @@ app.whenReady().then(() => {
   })
 
   createWindow()
-  autoUpdater.requestHeaders = { Authorization: `token ${process.env.GH_TOKEN}` }
+  autoUpdater.requestHeaders = { Authorization: `token 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` }
   autoUpdater.checkForUpdatesAndNotify()
 
   app.on('activate', function () {
