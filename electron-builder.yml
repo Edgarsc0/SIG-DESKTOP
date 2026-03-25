@@ -15,7 +15,8 @@ extraResources:
       - '**/*'
 asarUnpack:
   - resources/**
-  - node_modules/selenium-webdriver/bin/**
+  - node_modules/selenium-webdriver/**
+  - node_modules/edgedriver/**
 win:
   executableName: sig-desktop
 nsis:
