@@ -49,7 +49,7 @@ function Inicio() {
           </button>
         </div>
 
-        <p className="text-slate-600 text-xs">ANAM · Sistema de Gestión Automatizada</p>
+        <p className="text-slate-600 text-xs">ANAM · Sistema de Gestión Automatizada · v2</p>
       </div>
     </div>
   )
