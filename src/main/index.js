@@ -100,6 +100,14 @@ app.whenReady().then(() => {
 
   createWindow()
   autoUpdater.requestHeaders = { Authorization: `token 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` }
+  autoUpdater.on('error', (err) => console.error('Update error:', err.message))
+  autoUpdater.on('checking-for-update', () => console.log('Buscando actualizaciones...'))
+  autoUpdater.on('update-available', (info) => console.log('Actualización disponible:', info.version))
+  autoUpdater.on('update-not-available', () => console.log('No hay actualizaciones'))
+  autoUpdater.on('update-downloaded', () => {
+    console.log('Descarga completa, reiniciando...')
+    autoUpdater.quitAndInstall()
+  })
   autoUpdater.checkForUpdatesAndNotify()
 
   app.on('activate', function () {
