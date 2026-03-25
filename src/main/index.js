@@ -6,6 +6,8 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { autoUpdater } from 'electron-updater'
 
+const activeChildren = new Set()
+
 function createWindow() {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -62,15 +64,25 @@ app.whenReady().then(() => {
     return canceled ? null : filePaths[0]
   })
 
-  ipcMain.handle('iniciar-descarga', async (event, { ids, carpeta, headless }) => {
-    const scriptPath = is.dev
-      ? join(__dirname, '../../resources/scripts/index.js')
-      : join(process.resourcesPath, 'scripts/index.js')
+  ipcMain.handle('abrir-carpeta', (_, ruta) => shell.openPath(ruta))
 
+  ipcMain.handle('cancelar-descarga', () => {
+    for (const child of activeChildren) child.kill()
+    activeChildren.clear()
+  })
+
+  ipcMain.handle('crear-carpeta-descarga', (_, carpeta) => {
     const now = new Date()
     const fecha = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}`
     const downloadDir = join(carpeta, fecha)
     mkdirSync(downloadDir, { recursive: true })
+    return downloadDir
+  })
+
+  ipcMain.handle('iniciar-descarga', async (event, { ids, downloadDir, headless }) => {
+    const scriptPath = is.dev
+      ? join(__dirname, '../../resources/scripts/index.js')
+      : join(process.resourcesPath, 'scripts/index.js')
 
     for (const id of ids) {
       await new Promise((resolve, reject) => {
@@ -82,6 +94,7 @@ app.whenReady().then(() => {
         const child = spawn(process.execPath, [scriptPath, id, downloadDir, headless ? '1' : '0'], {
           env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
         })
+        activeChildren.add(child)
 
         child.stdout.on('data', (data) => {
           event.sender.send('descarga-log', data.toString())
@@ -92,6 +105,7 @@ app.whenReady().then(() => {
         })
 
         child.on('close', (code) => {
+          activeChildren.delete(child)
           if (code === 0) resolve()
           else reject(new Error(`Proceso terminó con código ${code}`))
         })
@@ -99,11 +113,71 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('iniciar-descarga-movimientos-anam-xlsx', async (event, { downloadDir, headless }) => {
+    let scriptPath = is.dev
+      ? join(__dirname, '../../resources/scripts/consultas.js')
+      : join(process.resourcesPath, 'scripts/consultas.js')
+
+    const sep = process.platform === 'win32' ? ';' : ':'
+    const nodeModulesPath = is.dev
+      ? join(__dirname, '../../node_modules')
+      : `${join(process.resourcesPath, 'app.asar.unpacked/node_modules')}${sep}${join(process.resourcesPath, 'app.asar/node_modules')}`
+
+    //Esto ejecutara la consulta en el SIG
+    await new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [scriptPath, downloadDir, headless ? '1' : '0'], {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
+      })
+      activeChildren.add(child)
+
+      child.stdout.on('data', (data) => {
+        event.sender.send('descarga-log', data.toString())
+      })
+
+      child.stderr.on('data', (data) => {
+        event.sender.send('descarga-log', `ERROR: ${data.toString()}`)
+      })
+
+      child.on('close', (code) => {
+        activeChildren.delete(child)
+        if (code === 0) resolve()
+        else reject(new Error(`Proceso terminó con código ${code}`))
+      })
+    })
+
+    //Una vez este lista la consulta para descargar, iniciamos el procedimiento para descargarla.
+    scriptPath = is.dev
+      ? join(__dirname, '../../resources/scripts/descargarExcel.js')
+      : join(process.resourcesPath, 'scripts/descargarExcel.js')
+    await new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [scriptPath, downloadDir, headless ? '1' : '0'], {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
+      })
+      activeChildren.add(child)
+
+      child.stdout.on('data', (data) => {
+        event.sender.send('descarga-log', data.toString())
+      })
+
+      child.stderr.on('data', (data) => {
+        event.sender.send('descarga-log', `ERROR: ${data.toString()}`)
+      })
+
+      child.on('close', (code) => {
+        activeChildren.delete(child)
+        if (code === 0) resolve()
+        else reject(new Error(`Proceso terminó con código ${code}`))
+      })
+    })
+  })
+
   createWindow()
 
   autoUpdater.on('error', (err) => console.error('Update error:', err.message))
   autoUpdater.on('checking-for-update', () => console.log('Buscando actualizaciones...'))
-  autoUpdater.on('update-available', (info) => console.log('Actualización disponible:', info.version))
+  autoUpdater.on('update-available', (info) =>
+    console.log('Actualización disponible:', info.version)
+  )
   autoUpdater.on('update-not-available', () => console.log('No hay actualizaciones'))
   autoUpdater.on('update-downloaded', () => {
     console.log('Descarga completa, reiniciando...')

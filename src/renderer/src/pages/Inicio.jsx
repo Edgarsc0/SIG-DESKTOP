@@ -1,8 +1,14 @@
+import { useState, useEffect } from 'react'
 import { FileDown } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 function Inicio() {
   const navigate = useNavigate()
+  const [version, setVersion] = useState('')
+
+  useEffect(() => {
+    window.api.getVersion().then(setVersion)
+  }, [])
 
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center py-8">
@@ -49,7 +55,7 @@ function Inicio() {
           </button>
         </div>
 
-        <p className="text-slate-600 text-xs">ANAM · Sistema de Gestión Automatizada · v2</p>
+        <p className="text-slate-600 text-xs">ANAM · Sistema de Gestión Automatizada · v{version}</p>
       </div>
     </div>
   )

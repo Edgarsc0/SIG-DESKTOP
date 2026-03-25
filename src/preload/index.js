@@ -5,12 +5,18 @@ import { electronAPI } from '@electron-toolkit/preload'
 const api = {
   getVersion: () => ipcRenderer.invoke('get-version'),
   seleccionarCarpeta: () => ipcRenderer.invoke('seleccionar-carpeta'),
-  iniciarDescarga: (ids, carpeta, headless) => ipcRenderer.invoke('iniciar-descarga', { ids, carpeta, headless }),
+  crearCarpetaDescarga: (carpeta) => ipcRenderer.invoke('crear-carpeta-descarga', carpeta),
+  iniciarDescarga: (ids, downloadDir, headless) =>
+    ipcRenderer.invoke('iniciar-descarga', { ids, downloadDir, headless }),
   onDescargaLog: (callback) => {
     const handler = (_, msg) => callback(msg)
     ipcRenderer.on('descarga-log', handler)
     return () => ipcRenderer.off('descarga-log', handler)
-  }
+  },
+  iniciarDescargaMovimientosAnamXlsx: (downloadDir, headless) =>
+    ipcRenderer.invoke('iniciar-descarga-movimientos-anam-xlsx', { downloadDir, headless }),
+  cancelarDescarga: () => ipcRenderer.invoke('cancelar-descarga'),
+  abrirCarpeta: (ruta) => ipcRenderer.invoke('abrir-carpeta', ruta)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
