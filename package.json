@@ -1,6 +1,6 @@
 {
   "name": "sig-desktop",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "An Electron application with React",
   "main": "./out/main/index.js",
   "author": "example.com",
