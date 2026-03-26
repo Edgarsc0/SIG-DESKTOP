@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { FileDown, Home, Database, FileScan } from 'lucide-react'
+import anamLogo from '../assets/anam_logo.png'
 
 const links = [
   { to: '/', icon: Home, label: 'Inicio' },
@@ -21,10 +22,10 @@ function Navbar() {
   }, [])
 
   return (
-    <aside className="w-16 hover:w-64 transition-all duration-300 ease-in-out group flex flex-col bg-slate-900 border-r border-white/5 h-screen shrink-0">
+    <aside className="w-16 hover:w-64 transition-all duration-300 ease-in-out group flex flex-col bg-stone-950 border-r border-white/5 h-screen shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-white/5">
-        <div className="w-8 h-8 rounded-lg bg-linear-to-br from-blue-500 to-cyan-400 flex items-center justify-center shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-linear-to-br from-amber-700 to-amber-500 flex items-center justify-center shrink-0">
           <FileDown size={16} className="text-white" />
         </div>
         <span className="text-white font-semibold text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -42,7 +43,7 @@ function Navbar() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                 isActive
-                  ? 'bg-blue-600/20 text-blue-400'
+                  ? 'bg-amber-700/20 text-amber-400'
                   : 'text-slate-400 hover:bg-white/5 hover:text-white'
               }`
             }
@@ -55,9 +56,14 @@ function Navbar() {
         ))}
       </nav>
 
-      {/* Versión */}
-      <div className="px-4 py-4 border-t border-white/5">
-        <span className="text-slate-600 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+      {/* Footer con logo */}
+      <div className="px-3 py-4 border-t border-white/5 flex flex-col items-center gap-2">
+        <img
+          src={anamLogo}
+          alt="ANAM"
+          className="w-full opacity-60 group-hover:opacity-90 transition-opacity duration-300 object-contain px-1"
+        />
+        <span className="text-stone-600 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           v{version}
         </span>
       </div>

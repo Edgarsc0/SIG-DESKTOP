@@ -135,11 +135,11 @@ function PanelDescargas() {
   const todosSeleccionados = seleccionados.size === archivos.length
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-900 via-blue-950 to-slate-900 p-8 flex flex-col">
+    <div className="min-h-screen bg-linear-to-br from-stone-950 via-neutral-900 to-stone-950 p-8 flex flex-col">
       {/* Fondo decorativo */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-600/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-red-900/5 rounded-full blur-3xl" />
       </div>
 
       {/* Encabezado */}
@@ -165,7 +165,7 @@ function PanelDescargas() {
           <Button
             onClick={handleDescargarSeleccionados}
             disabled={seleccionados.size === 0 || !carpeta || descargando}
-            className="bg-linear-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 disabled:opacity-30 disabled:shadow-none transition-all duration-200 flex items-center gap-2"
+            className="bg-linear-to-r from-amber-700 to-amber-500 hover:from-amber-600 hover:to-amber-400 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-amber-700/20 disabled:opacity-30 disabled:shadow-none transition-all duration-200 flex items-center gap-2"
           >
             <Download size={16} />
             Descargar{seleccionados.size > 0 ? ` (${seleccionados.size})` : ''}
@@ -193,14 +193,14 @@ function PanelDescargas() {
           <div className="w-px h-4 bg-white/10 shrink-0" />
           <div className="flex items-center gap-2 text-sm shrink-0">
             <span className="text-slate-400">Sel:</span>
-            <span className="text-cyan-400 font-semibold">{seleccionados.size}</span>
+            <span className="text-amber-400 font-semibold">{seleccionados.size}</span>
           </div>
           <div className="w-px h-4 bg-white/10 shrink-0" />
           <button
             onClick={elegirCarpeta}
             className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors min-w-0"
           >
-            <FolderOpen size={15} className="text-cyan-400 shrink-0" />
+            <FolderOpen size={15} className="text-amber-400 shrink-0" />
             <span className="truncate">{carpeta ?? 'Elegir carpeta...'}</span>
           </button>
         </div>
@@ -213,7 +213,7 @@ function PanelDescargas() {
             title={headless ? 'Navegador oculto' : 'Navegador visible'}
           >
             <div
-              className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${headless ? 'bg-blue-600' : 'bg-slate-600'}`}
+              className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${headless ? 'bg-amber-600' : 'bg-stone-600'}`}
             >
               <div
                 className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 ${headless ? 'left-4' : 'left-0.5'}`}
@@ -230,7 +230,7 @@ function PanelDescargas() {
           >
             <div
               className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
-                todosSeleccionados ? 'bg-blue-500 border-blue-500' : 'border-slate-600'
+                todosSeleccionados ? 'bg-amber-600 border-amber-600' : 'border-stone-600'
               }`}
             >
               {todosSeleccionados && <Check size={10} strokeWidth={3} className="text-white" />}
@@ -255,19 +255,19 @@ function PanelDescargas() {
               onClick={() => toggle(id)}
               className={`group relative text-left p-4 rounded-xl border transition-all duration-200 cursor-pointer flex items-center gap-3 ${
                 activo
-                  ? 'bg-blue-600/15 border-blue-500/40 shadow-lg shadow-blue-500/10'
+                  ? 'bg-amber-700/15 border-amber-600/40 shadow-lg shadow-amber-700/10'
                   : 'bg-white/5 border-white/10 hover:bg-white/8 hover:border-white/20'
               }`}
             >
               {/* Ícono */}
               <div
                 className={`shrink-0 p-2 rounded-lg transition-colors ${
-                  activo ? 'bg-blue-500/20' : 'bg-white/5 group-hover:bg-white/10'
+                  activo ? 'bg-amber-600/20' : 'bg-white/5 group-hover:bg-white/10'
                 }`}
               >
                 <FileSpreadsheet
                   size={22}
-                  className={activo ? 'text-blue-400' : 'text-slate-400'}
+                  className={activo ? 'text-amber-400' : 'text-stone-400'}
                 />
               </div>
 
@@ -275,13 +275,13 @@ function PanelDescargas() {
               <div className="flex-1 min-w-0">
                 <p
                   className={`text-xs font-semibold truncate transition-colors ${
-                    activo ? 'text-white' : 'text-slate-300 group-hover:text-white'
+                    activo ? 'text-white' : 'text-stone-300 group-hover:text-white'
                   }`}
                 >
                   {baseName}
                 </p>
                 <span
-                  className={`text-[10px] font-bold ${activo ? 'text-blue-400' : 'text-slate-500'}`}
+                  className={`text-[10px] font-bold ${activo ? 'text-amber-400' : 'text-stone-500'}`}
                 >
                   .{ext}
                 </span>
@@ -291,8 +291,8 @@ function PanelDescargas() {
               <div
                 className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200 ${
                   activo
-                    ? 'bg-blue-500 border-blue-500'
-                    : 'border-slate-600 group-hover:border-slate-400'
+                    ? 'bg-amber-600 border-amber-600'
+                    : 'border-stone-600 group-hover:border-stone-400'
                 }`}
               >
                 {activo && <Check size={9} className="text-white" strokeWidth={3} />}
@@ -300,7 +300,7 @@ function PanelDescargas() {
 
               {/* Línea inferior activa */}
               {activo && (
-                <div className="absolute bottom-0 left-4 right-4 h-px bg-linear-to-r from-transparent via-blue-500/50 to-transparent" />
+                <div className="absolute bottom-0 left-4 right-4 h-px bg-linear-to-r from-transparent via-amber-500/50 to-transparent" />
               )}
             </button>
           )
@@ -311,13 +311,13 @@ function PanelDescargas() {
       {(descargando || logs.length > 0) && (
         <div className="relative mt-6">
           <div className="flex items-center gap-2 mb-2">
-            <Terminal size={14} className="text-cyan-400" />
+            <Terminal size={14} className="text-amber-400" />
             <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">
               Salida del proceso
             </span>
             {descargando && (
-              <span className="flex items-center gap-1.5 text-xs text-cyan-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="flex items-center gap-1.5 text-xs text-amber-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                 En progreso...
               </span>
             )}
@@ -330,7 +330,7 @@ function PanelDescargas() {
             {completado && !descargando && downloadDir && (
               <button
                 onClick={() => window.api.abrirCarpeta(downloadDir)}
-                className="ml-auto flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+                className="ml-auto flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors"
               >
                 <FolderCheck size={13} />
                 Abrir carpeta
