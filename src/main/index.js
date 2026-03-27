@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { spawn } from 'child_process'
-import { mkdirSync } from 'fs'
+import { mkdirSync, readdirSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { autoUpdater } from 'electron-updater'
@@ -65,6 +65,43 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('abrir-carpeta', (_, ruta) => shell.openPath(ruta))
+
+  ipcMain.handle('corregir-archivos', async (event, { downloadDir }) => {
+    const exeName = process.platform === 'win32' ? 'corregir_heuristico.exe' : 'corregir_heuristico'
+    const exePath = is.dev
+      ? join(__dirname, '../../resources/scripts/', exeName)
+      : join(process.resourcesPath, 'scripts/', exeName)
+
+    const outputDir = join(downloadDir, 'Corregidos')
+    mkdirSync(outputDir, { recursive: true })
+
+    const csvFiles = readdirSync(downloadDir).filter((f) => f.endsWith('.csv'))
+
+    for (const csvFile of csvFiles) {
+      const inputPath = join(downloadDir, csvFile)
+      const baseName = csvFile.replace(/\.csv$/i, '')
+      const outputPath = join(outputDir, `${baseName}_Corregido.csv`)
+
+      event.sender.send('descarga-log', `Corrigiendo: ${csvFile}`)
+      await new Promise((resolve, reject) => {
+        const child = spawn(exePath, [inputPath, '--corregir', '--salida', outputPath], {
+          cwd: dirname(exePath)
+        })
+        activeChildren.add(child)
+
+        child.stdout.on('data', (data) => event.sender.send('descarga-log', data.toString()))
+        child.stderr.on('data', (data) =>
+          event.sender.send('descarga-log', `ERROR: ${data.toString()}`)
+        )
+
+        child.on('close', (code) => {
+          activeChildren.delete(child)
+          if (code === 0) resolve()
+          else reject(new Error(`corregir_heuristico.py terminó con código ${code}`))
+        })
+      })
+    }
+  })
 
   ipcMain.handle('cancelar-descarga', () => {
     for (const child of activeChildren) child.kill()

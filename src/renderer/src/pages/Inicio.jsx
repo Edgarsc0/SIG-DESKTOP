@@ -60,8 +60,8 @@ function Inicio() {
         </div>
 
         <p className="text-stone-600 text-xs">
-          ANAM · Agencia Nacional de Aduanas de México · v
-          <span className="text-amber-400">{version}</span>
+          ANAM · Agencia Nacional de Aduanas de México ·
+          <span className="text-amber-400">v{version}</span>
         </p>
       </div>
     </div>

@@ -27,6 +27,7 @@
     "electron-updater": "^6.8.3",
     "lucide": "^1.0.0-rc.1",
     "lucide-react": "^1.0.1",
+    "react-awesome-reveal": "^4.3.1",
     "react-router-dom": "^7.13.2",
     "selenium-webdriver": "^4.41.0",
     "tailwind-merge": "^3.5.0"

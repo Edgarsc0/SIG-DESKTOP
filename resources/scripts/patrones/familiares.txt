@@ -1,0 +1,710 @@
+================================================================================
+PLANTILLA: FAMILIARES
+Archivo de referencia: zafiro_info_Familiares.csv
+Separador: |
+Total columnas: 21
+================================================================================
+
+NOTA ESTRUCTURAL:
+Esta plantilla tiene la mayor tasa de errores por desplazamiento de columnas
+de las cuatro plantillas analizadas. Se detectaron filas donde datos de
+dirección (calle, ciudad, estado) se deslizan hacia las primeras columnas,
+corrompiendo HR_ID_PERSONA, PARENTESCO, MISMO_DOMICILIO y CORREO_ELECTRÓNICO.
+Esta característica hace que esta plantilla sea un caso de uso prioritario
+para la corrección por Gemini API en csv_checker.py.
+
+Errores de desplazamiento confirmados en el dataset:
+  - L7045  : HR_ID_PERSONA contiene "MAPLE   264-A" (dirección)
+  - L8109  : PARENTESCO="SALMERON", MISMO_DOMICILIO="Hijo" (corridos 1 col)
+  - L8413  : HR_ID_PERSONA contiene "CD. VICTORIA TAMPS"
+  - L8902  : HR_ID_PERSONA contiene dirección completa
+  - L8903  : HR_ID_PERSONA contiene "QUINTANA ROO"
+  - L10797 : HR_ID_PERSONA contiene dirección larga con CP
+  - L11674 : HR_ID_PERSONA contiene "EDO MEX CP 54409"
+  - L12120 : MISMO_DOMICILIO="Hija" (corrido 1 col)
+  - L14920 : PARENTESCO="Avendaño", MISMO_DOMICILIO="Cónyuge/Concubinato"
+  - L19008 : 23 columnas (col extra inserta en medio)
+
+================================================================================
+
+COLUMNAS:
+HR_ID_PERSONA | EMPLID | HR_CURP | HR_NOMBRE | LAST_NAME100 |
+HR_SECND_LAST_NAME | PARENTESCO | MISMO_DOMICILIO | CORREO_ELECTRÓNICO |
+TELÉFONO_PARTICULAR | TELÉFONO_CELULAR | CODIGO_POSTAL | COLONIA |
+ASENTAMIENTO | PAIS | ENTIDAD | MUNICIPIO | CIUDAD | NUM_EXTERIOR |
+NUMER_INTERIOR | SEXO
+
+================================================================================
+PATRONES POR COLUMNA
+================================================================================
+
+--------------------------------------------------------------------------------
+COLUMNA 1: HR_ID_PERSONA
+--------------------------------------------------------------------------------
+Descripcion  : Identificador interno de la persona en el sistema de RH
+               (mismo campo que ID_PERSONA en las plantillas de empleados)
+Tipo general : Numérico
+Obligatorio  : Sí
+Longitud     : 4-6 dígitos
+
+Patrones válidos detectados:
+
+  [P1] Número entero positivo, referencia al empleado titular
+       Regex : ^\d{4,6}$
+       Ejemplos: 84038, 75854, 40950, 32118, 72541
+       Nota  : 13,253 valores únicos; cada empleado puede tener
+               varios familiares (hasta 16 registros por ID).
+               El mismo HR_ID_PERSONA aparece repetido para cada
+               familiar del mismo empleado. Rango: ~25,000 a ~366,000
+               (igual que ID_PERSONA en Empleados_Activos/Bajas).
+
+Valores inválidos típicos:
+  - Texto en lugar de número (indica fila desplazada — ver nota estructural)
+  - Longitud fuera de 4-6 chars
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 2: EMPLID
+--------------------------------------------------------------------------------
+Descripcion  : Número de empleado del titular, codificado con prefijo de ceros
+Tipo general : Numérico (alfanumérico con ceros a la izquierda)
+Obligatorio  : No (~0.02% vacíos, 6 registros)
+Longitud     : 11 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Formato 0 + año(4d) + secuencia(6d) — prefijo "02022"
+       Regex : ^02022\d{6}$
+       Ejemplos: 02022032175, 02022033310, 02022034945
+       Nota  : ~36% de los registros. El año embebido es 2022
+               (primer año de operación de ANAM).
+
+  [P2] Formato 00 + año(4d) + secuencia(5d) — prefijo "00202"
+       Regex : ^00202\d{6}$
+       Ejemplos: 00202203716, 00202418113, 00202203729
+       Nota  : ~25% de los registros. Puede incluir años 2022, 2024.
+
+  [P3] Formato 000 + año(4d) + secuencia(4d) — prefijo "00020"
+       Regex : ^00020\d{6}$
+       Ejemplos: 00020220345, 00020221724, 00020241831
+       Nota  : ~32% de los registros.
+
+  [P4] Formato 0000 + año(4d) + secuencia(3d) — prefijo "00002"
+       Regex : ^00002\d{6}$
+       Ejemplos: 00002022179, 00002025095, 00002024098
+       Nota  : ~6% de los registros.
+       Regla general: siempre 11 chars totales; el año (2022-2026)
+       siempre está embebido en los dígitos del identificador.
+       Todos los formatos son equivalentes: distintas cantidades de
+       ceros a la izquierda para un mismo espacio de 11 chars.
+
+Valores inválidos típicos:
+  - Longitud distinta a 11
+  - Año fuera del rango 2022-2026
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 3: HR_CURP
+--------------------------------------------------------------------------------
+Descripcion  : CURP del familiar
+Tipo general : Alfanumérico
+Obligatorio  : No (~8.7% vacíos — menores de edad sin CURP, extranjeros)
+Longitud     : 18 caracteres cuando está lleno (excepcionalmente 17)
+
+Patrones válidos detectados:
+
+  [P1] CURP estándar México (18 chars)
+       Regex : ^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]{2}$
+       Estructura idéntica a la CURP de empleados:
+         Pos 1-4  : 4 letras (apellidos + nombre)
+         Pos 5-10 : 6 dígitos (AAMMDD nacimiento)
+         Pos 11   : H (Hombre) o M (Mujer)
+         Pos 12-16: 5 letras (estado + consonantes)
+         Pos 17-18: 2 chars alfanuméricos (diferenciador)
+       Ejemplos: VIDE570927MSRLMM01, GUBR820721HHGVDB09,
+                 GURR130401HMCVMBA8
+       Nota  : 28,322 registros con CURP válido de 18 chars.
+               Pueden existir duplicados (hermanos con CURP del
+               mismo padre o madre registrado dos veces).
+
+  [P2] CURP de 17 chars (dígito verificador faltante)
+       Regex : ^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]$
+       Ejemplos: AEQJ650727HMCLNR0, DIPM580716MCHZR07
+       Nota  : 34 registros. Puede ser CURP antiguo (anterior a la
+               estandarización a 18 chars) o error de captura.
+
+  [P3] Valor literal "NO CUENTA CON CURP"
+       Nota  : 3 registros. Indica explícitamente la ausencia de CURP
+               (extranjeros o casos especiales).
+
+  [P4] Campo vacío
+       Nota  : ~2,715 registros (~8.7%). Aplica principalmente a
+               menores de edad recién nacidos, extranjeros o familiares
+               sin CURP registrada.
+
+Valores inválidos típicos:
+  - Longitud distinta a 17 o 18 cuando no está vacío o "NO CUENTA CON CURP"
+  - Posición 11 distinta a H o M
+  - CURP con caracteres especiales o espacios
+
+--------------------------------------------------------------------------------
+COLUMNA 4: HR_NOMBRE
+--------------------------------------------------------------------------------
+Descripcion  : Nombre(s) del familiar (sin apellidos)
+Tipo general : Texto libre
+Obligatorio  : No (~8.1% vacíos)
+Longitud     : 1-30 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Texto alfabético en español, uno o más nombres
+       Regex : ^[A-Za-záéíóúüñÁÉÍÓÚÜÑ\s]+$
+       Ejemplos: EMA, Roberto Carlos, LINDA BERENICE,
+                 MARIA DEL CARMEN, VICTORIA JADWIGA
+       Nota  : 14,722 valores únicos. Puede estar en mayúsculas,
+               minúsculas o mixto (inconsistencia de captura).
+               Puede tener doble espacio interno (ej. "MARIA  ELENA").
+               Longitud típica 4-18 chars.
+
+Valores inválidos típicos:
+  - Dígitos o caracteres no alfabéticos
+  - Solo espacios
+
+--------------------------------------------------------------------------------
+COLUMNA 5: LAST_NAME100
+--------------------------------------------------------------------------------
+Descripcion  : Primer apellido del familiar
+Tipo general : Texto libre
+Obligatorio  : No (~8.2% vacíos)
+Longitud     : 1-29 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Texto alfabético en español, una sola palabra (mayormente)
+       Regex : ^[A-Za-záéíóúüñÁÉÍÓÚÜÑ\s]+$
+       Ejemplos: HERNANDEZ, GARCIA, LOPEZ, MARTINEZ, Hernandez
+       Nota  : 4,404 valores únicos. Inconsistencia de capitalización
+               (mayúsculas vs. mixto) entre registros. Puede ser un
+               apellido compuesto (ej. "MAC GREGOR", "Van Lissum").
+
+Valores inválidos típicos:
+  - Dígitos o caracteres especiales no alfabéticos
+  - Solo espacios
+
+--------------------------------------------------------------------------------
+COLUMNA 6: HR_SECND_LAST_NAME
+--------------------------------------------------------------------------------
+Descripcion  : Segundo apellido del familiar
+Tipo general : Texto libre
+Obligatorio  : No (~8.7% vacíos — familiares con un solo apellido)
+Longitud     : 1-24 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Texto alfabético en español, una sola palabra (mayormente)
+       Regex : ^[A-Za-záéíóúüñÁÉÍÓÚÜÑ\s]+$
+       Ejemplos: HERNANDEZ, GARCIA, LOPEZ, MARTINEZ, Hernandez
+       Nota  : 4,683 valores únicos. Mismas características de
+               capitalización mixta que LAST_NAME100. El campo
+               vacío es válido para familiares con un solo apellido.
+
+Valores inválidos típicos:
+  - Dígitos o caracteres especiales
+  - Solo espacios
+
+--------------------------------------------------------------------------------
+COLUMNA 7: PARENTESCO
+--------------------------------------------------------------------------------
+Descripcion  : Tipo de parentesco del familiar con el empleado
+Tipo general : Texto catálogo
+Obligatorio  : No (~8.8% vacíos)
+Longitud     : 4-19 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Catálogo cerrado de 18 valores válidos
+       Regex : ^.{4,19}$
+       Valores y frecuencias:
+         Mamá                  (~21%)
+         Cónyuge/Concubinato   (~15%)
+         Hijo                  (~14%)
+         Hija                  (~14%)
+         Papá                  (~13%)
+         Hermana               (~11%)
+         Hermano               (~10%)
+         Abuela                (~1%)
+         Abuelo                (<1%)
+         Suegra                (<1%)
+         Suegro                (<1%)
+         Recien Nacido         (<1%)
+         Nieto                 (<1%)
+         Nieta                 (<1%)
+         Yerno                 (<1%)
+         Cuñado                (<1%)
+         Cuñada                (<1%)
+         Nuera                 (<1%)
+       Nota  : 4 registros tienen valores fuera del catálogo
+               (SALMERON, Avendaño, GUADLUPE, GARCIA) que son
+               errores de desplazamiento de columna.
+
+Valores inválidos típicos:
+  - Valor fuera del catálogo de 18 parentescos
+  - Texto que es claramente un nombre/apellido (indica fila desplazada)
+  - Campo vacío sin justificación
+
+--------------------------------------------------------------------------------
+COLUMNA 8: MISMO_DOMICILIO
+--------------------------------------------------------------------------------
+Descripcion  : Indicador de si el familiar vive en el mismo domicilio que el empleado
+Tipo general : Texto catálogo
+Obligatorio  : No (~58.8% vacíos — campo no capturado para todos los familiares)
+Longitud     : 1 carácter
+
+Patrones válidos detectados:
+
+  [P1] Catálogo cerrado de 2 valores
+       Regex : ^[YN]$
+       Valores:
+         Y = Sí comparte domicilio (~84% de los registros con valor)
+         N = No comparte domicilio (~16% de los registros con valor)
+       Nota  : Más del 58% de los registros tienen este campo vacío,
+               lo cual es normal. Solo se captura cuando el familiar
+               comparte o no domicilio de forma explícita.
+               4 registros contienen valores inusuales producto de
+               desplazamiento de columna.
+
+Valores inválidos típicos:
+  - Valor distinto a Y o N cuando no está vacío
+  - Texto descriptivo (indica fila desplazada)
+
+--------------------------------------------------------------------------------
+COLUMNA 9: CORREO_ELECTRÓNICO
+--------------------------------------------------------------------------------
+Descripcion  : Correo electrónico del familiar
+Tipo general : Texto libre
+Obligatorio  : No (~99.99% vacíos — campo prácticamente sin uso)
+Longitud     : Variable cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Campo prácticamente siempre vacío
+       Nota  : Solo 2 registros tienen valor y ambos son anomalías
+               por desplazamiento de columna ("Y" y "Mamá").
+               Para efectos prácticos este campo siempre debe
+               estar vacío. Si tiene valor, es señal de fila
+               desplazada.
+
+Valores inválidos típicos:
+  - Cualquier valor no vacío es sospechoso de desplazamiento
+  - Un correo electrónico legítimo (formato x@x.x) podría ser válido
+    pero no se ha observado en el dataset
+
+--------------------------------------------------------------------------------
+COLUMNA 10: TELÉFONO_PARTICULAR
+--------------------------------------------------------------------------------
+Descripcion  : Teléfono particular del familiar
+Tipo general : Numérico
+Obligatorio  : No (~63.3% vacíos)
+Longitud     : 10 dígitos cuando está lleno (excepcionalmente 8)
+
+Patrones válidos detectados:
+
+  [P1] Número telefónico México 10 dígitos
+       Regex : ^\d{10}$
+       Ejemplos: 6622672133, 5525958956, 5553798521, 5558285933
+       Nota  : ~99.96% de los registros con valor tienen 10 dígitos.
+               Incluye lada (2-3 dígitos) + número local (7-8 dígitos).
+
+  [P2] Número de 8 dígitos (sin lada, formato antiguo)
+       Regex : ^\d{8}$
+       Ejemplos: 22171667, 21574250
+       Nota  : Solo 4 registros. Posiblemente teléfonos de lada
+               corta o captura incompleta.
+
+  [P3] Valores de relleno (teléfonos ficticios)
+       Nota  : Se observan "5555555555" (100 registros) y "0000000000"
+               (21 registros) como valores placeholder. Técnicamente
+               cumplen el formato de 10 dígitos pero no son teléfonos
+               reales.
+
+Valores inválidos típicos:
+  - Longitud distinta a 8 o 10
+  - Caracteres no numéricos (guiones, paréntesis, espacios)
+  - Campo vacío es válido y frecuente
+
+--------------------------------------------------------------------------------
+COLUMNA 11: TELÉFONO_CELULAR
+--------------------------------------------------------------------------------
+Descripcion  : Teléfono celular del familiar
+Tipo general : Numérico
+Obligatorio  : No (~70% vacíos)
+Longitud     : 10 dígitos cuando está lleno (excepcionalmente 8)
+
+Patrones válidos detectados:
+
+  [P1] Número telefónico México 10 dígitos
+       Regex : ^\d{10}$
+       Ejemplos: 5565927304, 5553791214, 6681452038
+       Nota  : ~99.97% de los registros con valor. Mismo formato
+               que TELÉFONO_PARTICULAR.
+
+  [P2] Número de 8 dígitos (casos excepcionales)
+       Regex : ^\d{8}$
+       Nota  : 3 registros.
+
+  [P3] Valores de relleno ficticios
+       Nota  : "5555555555" (76 registros) y "0000000000" (9 registros).
+
+Valores inválidos típicos:
+  - Longitud distinta a 8 o 10
+  - Caracteres no numéricos
+  - Campo vacío es válido y frecuente
+
+--------------------------------------------------------------------------------
+COLUMNA 12: CODIGO_POSTAL
+--------------------------------------------------------------------------------
+Descripcion  : Código postal del domicilio del familiar
+Tipo general : Numérico
+Obligatorio  : No (~65.3% vacíos — solo se llena cuando comparte domicilio)
+Longitud     : 5 dígitos cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Código postal México, 5 dígitos con ceros a la izquierda
+       Regex : ^\d{5}$
+       Ejemplos: 83100, 54026, 32600, 11430, 81893, 06300, 04369
+       Nota  : ~99.95% de los registros con valor tienen 5 dígitos.
+               Rango: 00000-99999. Los CPs de la CDMX inician con
+               0 (ej. 06300), que debe preservarse como string.
+               3,016 valores únicos.
+
+  [P2] Anomalías de formato
+       Nota  : 2 registros con "30700 " (espacio al final, 6 chars)
+               y 3 registros con 10 dígitos (número de celular que
+               se desplazó a esta columna).
+
+Valores inválidos típicos:
+  - Longitud distinta a 5
+  - Caracteres no numéricos
+  - Trailing spaces
+  - Campo vacío es válido y muy frecuente
+
+--------------------------------------------------------------------------------
+COLUMNA 13: COLONIA
+--------------------------------------------------------------------------------
+Descripcion  : Nombre de la colonia del domicilio del familiar
+Tipo general : Texto libre
+Obligatorio  : No (~65.5% vacíos)
+Longitud     : 3-53 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Texto libre en español, nombre de colonia o asentamiento
+       Regex : ^.{3,53}$
+       Ejemplos: Centro, Morelos, Guerrero, La Pradera,
+                 Pedregal de Santo Domingo, Ciudad Satélite
+       Nota  : 3,292 valores únicos. Puede contener acentos, números
+               y caracteres especiales propios de nombres de colonias.
+               No tiene catálogo cerrado.
+
+Valores inválidos típicos:
+  - Campo vacío con domicilio lleno en otras columnas (inconsistencia)
+  - "Calle C.P." (texto genérico placeholder)
+
+--------------------------------------------------------------------------------
+COLUMNA 14: ASENTAMIENTO
+--------------------------------------------------------------------------------
+Descripcion  : Tipo de asentamiento urbano (catálogo INEGI/SEPOMEX)
+Tipo general : Texto catálogo
+Obligatorio  : No (~66% vacíos)
+Longitud     : 2 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Código de 2 letras, catálogo INEGI de tipo de asentamiento
+       Regex : ^[A-Z]{2}$
+       Valores más frecuentes y su significado:
+         CO = Colonia               (~67%)
+         FR = Fraccionamiento       (~12%)
+         CL = Colonia (variante)    (~5%)
+         CI = Ciudad                (~2%)
+         MN = Manzana               (~2%)
+         CH = Chalet / Cond. Horiz. (~1%)
+         LG = Local/Granja          (~1%)
+         AV = Avenida/Vialidad      (~1%)
+         BA = Barrio                (~1%)
+         EJ = Ejido                 (~1%)
+         CD = Conjunto/Condominio   (<1%)
+         UH = Unidad Habitacional   (<1%)
+         AL = Aldea                 (<1%)
+         PB = Pueblo                (<1%)
+         BO = Bodega/Zona Ind.      (<1%)
+         RE = Residencial           (<1%)
+         ED = Edificio              (<1%)
+         PU = Pueblo (variante)     (<1%)
+         RH = Rancho/Ranchería      (<1%)
+         AM = Ampliación            (<1%)
+         MZ = Manzana (variante)    (<1%)
+         (y 22 tipos más con < 15 registros cada uno)
+       Nota  : 44 tipos distintos observados. Catálogo normativo
+               de SEPOMEX. 1 valor anómalo "Villas de Santa Rosa"
+               (texto completo en lugar del código de 2 chars).
+
+Valores inválidos típicos:
+  - Longitud distinta a 2
+  - Texto completo en lugar del código
+  - Campo vacío con dirección llena (inconsistencia)
+
+--------------------------------------------------------------------------------
+COLUMNA 15: PAIS
+--------------------------------------------------------------------------------
+Descripcion  : País del domicilio del familiar
+Tipo general : Texto catálogo
+Obligatorio  : No (~65.3% vacíos)
+Longitud     : 2-3 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Código de país ISO, prácticamente siempre México
+       Regex : ^(MEX|[A-Z]{2})$
+       Valores:
+         MEX = México  (~99.99%, 10,791 registros)
+         FR  = Francia  (<0.01%,      1 registro)
+       Nota  : El 100% de los familiares residen en México salvo
+               1 caso excepcional. Para validación práctica el
+               valor esperado siempre es MEX.
+
+Valores inválidos típicos:
+  - Valor distinto a MEX (sospechoso pero no imposible)
+  - Campo vacío cuando otras columnas de dirección están llenas
+
+--------------------------------------------------------------------------------
+COLUMNA 16: ENTIDAD
+--------------------------------------------------------------------------------
+Descripcion  : Clave o abreviatura de la entidad federativa del domicilio
+Tipo general : Texto catálogo
+Obligatorio  : No (~65.3% vacíos)
+Longitud     : 2-4 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Abreviatura de entidad federativa mexicana, catálogo de 33 valores
+       Regex : ^[A-Z]{2,4}$
+       Valores observados (de mayor a menor frecuencia):
+         DF   = Ciudad de México (CDMX)          (~20%)
+         EMEX = Estado de México                 (~17%)
+         TAMP = Tamaulipas                       (~10%)
+         VER  = Veracruz                         (~7%)
+         SON  = Sonora                           (~4%)
+         BC   = Baja California                  (~4%)
+         CHIH = Chihuahua                        (~3%)
+         SIN  = Sinaloa                          (~3%)
+         CHPS = Chiapas                          (~3%)
+         COLI = Colima                           (~3%)
+         QRO  = Querétaro                        (~2%)
+         PUE  = Puebla                           (~2%)
+         GRO  = Guerrero                         (~2%)
+         JAL  = Jalisco                          (~2%)
+         NL   = Nuevo León                       (~2%)
+         HGO  = Hidalgo                          (~2%)
+         COAH = Coahuila                         (~2%)
+         OAX  = Oaxaca                           (~2%)
+         QROO = Quintana Roo                     (~2%)
+         YUC  = Yucatán                          (~1%)
+         MICH = Michoacán                        (~1%)
+         GTO  = Guanajuato                       (~1%)
+         BCS  = Baja California Sur              (~1%)
+         MOR  = Morelos                          (~1%)
+         TAB  = Tabasco                          (<1%)
+         TLAX = Tlaxcala                         (<1%)
+         CAMP = Campeche                         (<1%)
+         DGO  = Durango                          (<1%)
+         AGS  = Aguascalientes                   (<1%)
+         SLP  = San Luis Potosí                  (<1%)
+         ZAC  = Zacatecas                        (<1%)
+         BCN  = Baja California Norte (variante) (<1%)
+         NAY  = Nayarit                          (<1%)
+         MEX  = México (variante de EMEX)         (1 registro)
+       Nota  : 34 valores únicos. Las abreviaturas son mayúsculas y
+               no siempre siguen el estándar ISO 3166-2:MX (usan
+               abreviaturas propias del sistema origen). "DF" es la
+               abreviatura histórica de la CDMX.
+
+Valores inválidos típicos:
+  - Abreviatura no reconocida
+  - Minúsculas
+  - Campo vacío con dirección llena
+
+--------------------------------------------------------------------------------
+COLUMNA 17: MUNICIPIO
+--------------------------------------------------------------------------------
+Descripcion  : Nombre del municipio del domicilio del familiar
+Tipo general : Texto libre
+Obligatorio  : No (~89.9% vacíos — campo muy poco capturado)
+Longitud     : 2-38 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Nombre de municipio en español
+       Regex : ^.{2,38}$
+       Ejemplos: Cuauhtémoc, Iztapalapa, Gustavo A Madero,
+                 Coyoacán, Tlalnepantla de Baz, Tijuana
+       Nota  : Solo ~10% de los registros tienen municipio capturado.
+               276 valores únicos. Puede contener acentos y
+               caracteres especiales. No tiene catálogo fijo.
+
+Valores inválidos típicos:
+  - Campo vacío con ENTIDAD llena (frecuente pero es inconsistencia)
+  - Texto que no corresponde a un municipio conocido
+
+--------------------------------------------------------------------------------
+COLUMNA 18: CIUDAD
+--------------------------------------------------------------------------------
+Descripcion  : Nombre de la calle o ciudad del domicilio del familiar
+               (Nota: este campo en la práctica contiene el nombre de
+               calle o vialidad, no la ciudad propiamente dicha)
+Tipo general : Texto libre
+Obligatorio  : No (~54.1% vacíos)
+Longitud     : 1-100 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Nombre de calle o vialidad en texto libre
+       Regex : ^.{1,100}$
+       Ejemplos: Articulo Tercero, Cardenal, TOMAS CHACON,
+                 Lago Kolind, Cto. Pintores, Lobina # 113
+       Nota  : 6,726 valores únicos. El valor más frecuente es
+               "Calle               C.P. " (1,117 registros), que
+               es un placeholder automático del sistema indicando
+               que la dirección no fue completada correctamente.
+               El campo acepta texto libre de longitud variable.
+
+  [P2] Valor placeholder de sistema
+       Valor  : "Calle               C.P. " (con espacios internos)
+       Nota   : ~7.8% de los registros con valor. Indica dirección
+                no capturada o datos incompletos.
+
+Valores inválidos típicos:
+  - Longitud mayor a 100 (podría indicar datos de múltiples campos)
+  - Campo vacío con NUM_EXTERIOR lleno (inconsistencia leve)
+
+--------------------------------------------------------------------------------
+COLUMNA 19: NUM_EXTERIOR
+--------------------------------------------------------------------------------
+Descripcion  : Número exterior del domicilio del familiar
+Tipo general : Alfanumérico
+Obligatorio  : No (~65.4% vacíos)
+Longitud     : 1-10 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Número entero (caso más común)
+       Regex : ^\d{1,5}$
+       Ejemplos: 249, 14, 18, 177, 113, 2012, 595
+       Nota  : Forma más frecuente.
+
+  [P2] Valor "sin número" (variantes)
+       Regex : ^(S/N|SN|S/I|S/N INT)$
+       Valores: "S/N INT" (766), "S/N" (483), "SN" (122), "S/I" (74)
+       Nota  : Representan domicilios sin número exterior. Distintas
+               variantes de captura para el mismo concepto.
+
+  [P3] Alfanumérico con guiones o letras
+       Regex : ^[\w\s/\-]+$
+       Ejemplos: 18-B, MAPLE 264-A, KM 19
+
+Valores inválidos típicos:
+  - Texto libre muy largo (podría ser dirección completa desplazada)
+  - Campo vacío con COLONIA o CODIGO_POSTAL llenos
+
+--------------------------------------------------------------------------------
+COLUMNA 20: NUMER_INTERIOR
+--------------------------------------------------------------------------------
+Descripcion  : Número interior del domicilio del familiar
+               (Nota: typo en nombre de columna; debería ser NUMERO_INTERIOR)
+Tipo general : Alfanumérico
+Obligatorio  : No (~86.9% vacíos — aplica solo a departamentos/edificios)
+Longitud     : 1-10 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Número entero
+       Regex : ^\d{1,4}$
+       Ejemplos: 410, 113, 28, 34, 903, 102
+       Nota  : Forma más común.
+
+  [P2] Valor "sin número" (variantes)
+       Regex : ^(S/N|SN|SIN NUMERO|N/A|0)$
+       Valores: S/N (544), SN (191), SIN NUMERO (50), N/A, 0 (115)
+       Nota  : Indica que no hay número interior. Distintas variantes
+               de captura.
+
+  [P3] Código alfanumérico
+       Regex : ^[A-Z0-9]+$
+       Ejemplos: A, B, E10, B502, LT 11
+
+Valores inválidos típicos:
+  - Texto muy largo (no corresponde a un número interior)
+  - Campo vacío es válido y muy frecuente
+
+--------------------------------------------------------------------------------
+COLUMNA 21: SEXO
+--------------------------------------------------------------------------------
+Descripcion  : Sexo del familiar
+Tipo general : Texto catálogo
+Obligatorio  : No (~8.8% vacíos)
+Longitud     : 5-6 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Catálogo de 2 valores
+       Regex : ^(Mujer|Hombre)$
+       Valores:
+         Mujer  = (~58%)
+         Hombre = (~42%)
+       Nota  : A diferencia de las plantillas de empleados (que usan
+               H/M de 1 char), aquí el valor es texto completo.
+               La proporción Mujer > Hombre refleja que los familiares
+               registrados incluyen muchas madres, cónyuges e hijas.
+
+  [P2] Valores anómalos (errores de captura)
+       Valores: "11D" (2 registros), "S/N" (1 registro)
+       Nota  : Estos 3 registros contienen valores de otras columnas
+               desplazados a SEXO. Para efectos de validación
+               solo Mujer y Hombre son válidos.
+
+Valores inválidos típicos:
+  - Valor distinto a Mujer u Hombre (incluyendo H, M, masculino, femenino)
+  - Dígitos o códigos (indica fila desplazada)
+  - Campo vacío es válido cuando HR_NOMBRE también está vacío
+
+================================================================================
+RESUMEN DE CALIDAD DEL DATASET
+================================================================================
+
+Campos con alta tasa de vacíos (campo opcional o de captura parcial):
+  MISMO_DOMICILIO     : ~59% vacíos
+  CORREO_ELECTRÓNICO  : ~100% vacíos (campo sin uso)
+  TELÉFONO_PARTICULAR : ~63% vacíos
+  TELÉFONO_CELULAR    : ~70% vacíos
+  CODIGO_POSTAL       : ~65% vacíos
+  COLONIA             : ~66% vacíos
+  ASENTAMIENTO        : ~66% vacíos
+  PAIS                : ~65% vacíos
+  ENTIDAD             : ~65% vacíos
+  MUNICIPIO           : ~90% vacíos (campo muy poco capturado)
+  CIUDAD              : ~54% vacíos
+  NUM_EXTERIOR        : ~65% vacíos
+  NUMER_INTERIOR      : ~87% vacíos
+  SEXO                : ~9% vacíos
+  HR_CURP             : ~9% vacíos (menores/extranjeros)
+
+Regla general de llenado: cuando MISMO_DOMICILIO = Y, los campos de
+domicilio (CODIGO_POSTAL...NUMER_INTERIOR) deben estar llenos. Cuando
+MISMO_DOMICILIO = N o está vacío, los campos de domicilio pueden estar
+vacíos o contener el placeholder "Calle               C.P. ".
+
+================================================================================
+FIN DEL ARCHIVO — VERSION 1.0 (21 columnas analizadas)
+Fuente: zafiro_info_Familiares.csv | Registros analizados: 31,096
+================================================================================

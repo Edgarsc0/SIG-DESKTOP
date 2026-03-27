@@ -3,6 +3,7 @@ import Navbar from './components/Navbar'
 import Inicio from './pages/Inicio'
 import PanelDescargas from './pages/PanelDescargas'
 import DeteccionCorreccion from './pages/DeteccionCorreccion'
+import { Fade } from 'react-awesome-reveal'
 
 function App() {
   return (
@@ -10,9 +11,42 @@ function App() {
       <Navbar />
       <main className="flex-1 overflow-auto">
         <Routes>
-          <Route path="/" element={<Inicio />} />
-          <Route path="/descargas" element={<PanelDescargas />} />
-          <Route path="/correcion_deteccion" element={<DeteccionCorreccion />} />
+          <Route
+            path="/"
+            element={
+              <Fade
+                delay={200} // Wait before starting
+                duration={1000} // Animation duration
+                fraction={0.5} // Trigger when 50% visible
+              >
+                <Inicio />
+              </Fade>
+            }
+          />
+          <Route
+            path="/descargas"
+            element={
+              <Fade
+                delay={200} // Wait before starting
+                duration={1000} // Animation duration
+                fraction={0.5} // Trigger when 50% visible
+              >
+                <PanelDescargas />
+              </Fade>
+            }
+          />
+          <Route
+            path="/correcion_deteccion"
+            element={
+              <Fade
+                delay={200} // Wait before starting
+                duration={1000} // Animation duration
+                fraction={0.5} // Trigger when 50% visible
+              >
+                <DeteccionCorreccion />
+              </Fade>
+            }
+          />
         </Routes>
       </main>
     </div>

@@ -16,7 +16,8 @@ const api = {
   iniciarDescargaMovimientosAnamXlsx: (downloadDir, headless) =>
     ipcRenderer.invoke('iniciar-descarga-movimientos-anam-xlsx', { downloadDir, headless }),
   cancelarDescarga: () => ipcRenderer.invoke('cancelar-descarga'),
-  abrirCarpeta: (ruta) => ipcRenderer.invoke('abrir-carpeta', ruta)
+  abrirCarpeta: (ruta) => ipcRenderer.invoke('abrir-carpeta', ruta),
+  corregirArchivos: (downloadDir) => ipcRenderer.invoke('corregir-archivos', { downloadDir })
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

@@ -1,0 +1,1364 @@
+================================================================================
+PLANTILLA: EMPLEADOS ACTIVOS
+Archivo de referencia: zafiro_info_Empleados_Activos.csv
+Separador: |
+Total columnas: 49
+================================================================================
+
+COLUMNAS:
+POSICION | NO_EMPLEADO | NOMBRE_COMPLETO | PRIMER_APELLIDO | SEGUNDO_APELLIDO |
+ACCION | ACCION_DESCR | MOTIVO | MOTIVO_DESCR | FECHA_EFECTIVA |
+SEQUENCIA_EFECTIVA | FECHA_APLICACION | HUMANOS_STATUS | NOMINA_STATUS |
+PARTIDA | UNIDAD_GENERAL | UNIDAD_ADMON | DEPARTAMENTO | DEPENDENCIA_DIRECTA |
+PLAN_SALARIAL | GRADO | ESCALA | PUESTO_PRESUPUESTAL | NIVEL_TABULAR |
+GRUPO_DE_PAGO | BENEFICIOS | SMB | PUESTO | UBICACION | INMUEBLE |
+FECHA_PREVISTA | ULTIMA_ACTUALIZACION | ULTIMO_OPERADOR | ULTIMA_FECHA_INGRESO |
+FECHA_INGRESO | GRUPO_TRABAJO | CODIGO_GRUPO | FECHA_ASIGNACION | RFC | CURP |
+ID_PERSONA | NIVEL | NIVEL | UNIDAD_ADMINISTRATIVA | GENERO |
+FECHA_ENTRADA_POSICION | FECHA_POSICION | FFAA | GRADO_FA
+
+================================================================================
+PATRONES POR COLUMNA
+================================================================================
+
+--------------------------------------------------------------------------------
+COLUMNA 1: POSICION
+--------------------------------------------------------------------------------
+Descripcion  : Identificador de la posición ocupada por el empleado
+Tipo general : Numérico
+Obligatorio  : Sí
+Longitud     : 8 dígitos exactos
+
+Patrones válidos detectados:
+
+  [P1] Numérico 8 dígitos, prefijo 103
+       Regex : ^103\d{5}$
+       Ejemplos: 10300009, 10300078, 10300081, 10300084
+       Nota  : Formato más frecuente. Referencia a POSICION de la
+               plantilla Posiciones.
+
+  [P2] Numérico 8 dígitos, prefijo 202x
+       Regex : ^20[12]\d{5}$
+       Ejemplos: 20238254, 20235029, 20235032, 20235107
+       Nota  : Segundo formato más frecuente. Todos los registros
+               tienen longitud exacta de 8 dígitos (sin excepción
+               en esta plantilla, a diferencia de Posiciones).
+
+Valores inválidos típicos:
+  - Longitud distinta a 8
+  - Prefijo fuera de 103 o 202x
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 2: NO_EMPLEADO
+--------------------------------------------------------------------------------
+Descripcion  : Número de empleado (identificador único del trabajador)
+Tipo general : Numérico
+Obligatorio  : Sí
+Longitud     : 7 a 10 dígitos
+
+Patrones válidos detectados:
+
+  [P1] Numérico basado en año de ingreso como prefijo
+       Regex : ^20(22|23|24|25|26)\d{3,6}$
+       Longitudes y distribución:
+         7 dígitos : ~5%  (ej. 2025101, 2026033, 2025065)
+         8 dígitos : ~29% (ej. 20222493, 20230530, 20250516)
+         9 dígitos : ~28% (ej. 202203124, 202515134, 202203497)
+        10 dígitos : ~39% (ej. 2022203297, 2022203298, 2025059002)
+       Nota  : Los 4 primeros dígitos siempre corresponden al año
+               de ingreso (2022-2026). Es identificador único: no
+               se repite en el dataset.
+
+Valores inválidos típicos:
+  - Prefijo diferente a 2022-2026
+  - Longitud fuera del rango 7-10
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 3: NOMBRE_COMPLETO
+--------------------------------------------------------------------------------
+Descripcion  : Nombre completo del empleado (nombre(s) + apellidos)
+Tipo general : Texto libre
+Obligatorio  : Sí
+Longitud     : 12-44 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Texto en español, formato "Nombre(s) ApellidoP ApellidoM"
+       Regex : ^[A-Za-záéíóúüñÁÉÍÓÚÜÑ\s]+$
+       Ejemplos: Rafael Fernando Marin Mollinedo,
+                 Claudia Ileana Avila Connelly,
+                 Juan Rosas
+       Nota  : Longitud típica 18-30 chars. Puede contener acentos.
+               Puede tener un solo apellido (segundo apellido vacío).
+               3 empleados comparten nombre completo (duplicados).
+               Puede contener espacios dobles en casos raros.
+
+Valores inválidos típicos:
+  - Dígitos o caracteres especiales no alfabéticos
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 4: PRIMER_APELLIDO
+--------------------------------------------------------------------------------
+Descripcion  : Primer apellido del empleado
+Tipo general : Texto libre
+Obligatorio  : Sí
+Longitud     : 2-20 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Texto alfabético en español, una sola palabra
+       Regex : ^[A-Za-záéíóúüñÁÉÍÓÚÜÑ]+$
+       Ejemplos: Hernandez, Garcia, Martinez, Lopez, Sanchez
+       Nota  : 1,903 valores únicos. Los más frecuentes son
+               apellidos comunes mexicanos. Puede contener acentos.
+
+Valores inválidos típicos:
+  - Dígitos o caracteres no alfabéticos
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 5: SEGUNDO_APELLIDO
+--------------------------------------------------------------------------------
+Descripcion  : Segundo apellido del empleado
+Tipo general : Texto libre
+Obligatorio  : No (~0.2% vacíos — empleados con un solo apellido)
+Longitud     : 2-24 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Texto alfabético en español, una sola palabra
+       Regex : ^[A-Za-záéíóúüñÁÉÍÓÚÜÑ]+$
+       Ejemplos: Hernandez, Garcia, Martinez, Lopez, Perez
+       Nota  : 1,886 valores únicos. Campo vacío es válido cuando
+               el empleado tiene un solo apellido paterno.
+
+Valores inválidos típicos:
+  - Dígitos o caracteres no alfabéticos
+  - Espacio simple (debería ser campo vacío)
+
+--------------------------------------------------------------------------------
+COLUMNA 6: ACCION
+--------------------------------------------------------------------------------
+Descripcion  : Código de la acción de personal registrada
+Tipo general : Texto catálogo
+Obligatorio  : Sí
+Longitud     : 3 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Código alfabético/alfanumérico 3 chars, catálogo de 15 valores
+       Regex : ^[A-Z0-9]{3}$
+       Valores y frecuencias:
+         EXT = Continuidad                              (~52%)
+         PAY = Cambio Remuneración                     (~35%)
+         HIR = Contratación                            (~5%)
+         ORG = Cambio Organizacional                   (~4%)
+         XFR = Reclutamiento Interno                   (~3%)
+         REH = Recontratación                          (<1%)
+         RFD = Reincorp Licencia Médica                (<1%)
+         STO = Licencia Médica S/Sueldo                (<1%)
+         SUS = Suspensión                              (<1%)
+         REC = Reincorp Suspensión                     (<1%)
+         XF1 = (variante XFR sin cambio salarial)      (<1%)
+         RFL = Reincorp Licencia Cond Grales           (<1%)
+         RE1 = Reincorporación Licencia s/Goce Sueldo  (<1%)
+         LTD = Licencia Pre-Jubilatoria                (<1%)
+         LOA = Licencia s/Goce de Sueldo               (<1%)
+       Nota  : Correlaciona 1 a 1 con ACCION_DESCR.
+
+Valores inválidos típicos:
+  - Código fuera del catálogo
+  - Minúsculas o longitud distinta a 3
+
+--------------------------------------------------------------------------------
+COLUMNA 7: ACCION_DESCR
+--------------------------------------------------------------------------------
+Descripcion  : Descripción de la acción de personal (correlaciona con ACCION)
+Tipo general : Texto catálogo
+Obligatorio  : Sí
+Longitud     : 10-41 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Texto en español, catálogo cerrado de 13 valores
+       Regex : ^.{10,41}$
+       Valores completos:
+         Continuidad                            -> EXT
+         Cambio Remuneración                    -> PAY
+         Contratación                           -> HIR
+         Cambio Organizacional                  -> ORG
+         Reclutamiento Interno                  -> XFR
+         Recontratación                         -> REH
+         Reincorp Licencia Médica               -> RFD
+         Licencia Médica S/Sueldo               -> STO
+         Suspensión                             -> SUS
+         Reincorporación Suspensión             -> REC
+         Reincorp Licencia Cond Grales          -> RFL
+         Licencia Pre-Jubilatoria               -> LTD (y RE1)
+         Licencia s/Goce de Sueldo              -> LOA
+       Nota  : Puede contener acentos. Debe ser consistente con ACCION.
+
+Valores inválidos típicos:
+  - Descripción no perteneciente al catálogo
+  - Inconsistencia con código ACCION
+
+--------------------------------------------------------------------------------
+COLUMNA 8: MOTIVO
+--------------------------------------------------------------------------------
+Descripcion  : Código del motivo específico del movimiento
+Tipo general : Texto catálogo
+Obligatorio  : Sí
+Longitud     : 3 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Código alfanumérico 3 chars, catálogo de 25 valores
+       Regex : ^[A-Z0-9]{3}$
+       Valores y frecuencias:
+         FX1 = Renovación Nombramiento          (~43%)
+         ADJ = Ajuste Salarial                  (~28%)
+         FIX = Nombramiento Definitivo/Ingreso  (~14%)
+         SEN = Pago Prima Quinquenal            (~7%)
+         UD1 = Actualizar Datos Departamento    (~2%)
+         INT = Con Cambio Salarial              (~2%)
+         XF1 = Cmbio Adscripción s/Cambio Sal  (~1%)
+         IN2 = Promoción                        (~1%)
+         UDD = Cambio Dep. Directa/Indirecta    (<1%)
+         RFD = Reincorp Licencia Médica         (<1%)
+         REH = Reingreso                        (<1%)
+         STO = Licencia Médica                  (<1%)
+         REO = Alineación Organizacional        (<1%)
+         STP = Administrativa de Pago           (<1%)
+         XF3 = Cmb Cntro Trabajo s/Cambio Sal  (<1%)
+         REC, IN1, RFL, SOJ, LTD, CMP,
+         EXH, REE, SSF, UP1                    (muy raros)
+       Nota  : Correlaciona con MOTIVO_DESCR. El catálogo es más
+               amplio que en la plantilla Posiciones.
+
+Valores inválidos típicos:
+  - Código fuera del catálogo
+  - Longitud distinta a 3
+
+--------------------------------------------------------------------------------
+COLUMNA 9: MOTIVO_DESCR
+--------------------------------------------------------------------------------
+Descripcion  : Descripción del motivo (correlaciona con MOTIVO)
+Tipo general : Texto catálogo
+Obligatorio  : Sí
+Longitud     : 7-30 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Texto en español, catálogo de 27 valores
+       Regex : ^.{7,30}$
+       Valores principales:
+         Renovación Nombramiento              -> FX1
+         Ajuste Salarial                      -> ADJ
+         Nombramiento Definitivo              -> FIX
+         Pago Prima Quinquenal               -> SEN
+         Ingreso                              -> HIR/FIX
+         Actualizar Datos Departamento        -> UD1
+         Con Cambio Salarial                  -> INT
+         Cmbio Adscripción s/Cambio Sal       -> XF1
+         Promoción                            -> IN2
+         Cambio Dep. Directa/Indirecta        -> UDD
+         Reingreso                            -> REH
+         Alineación Organizacional            -> REO
+         Cmb Cntro Trabajo s/Cambio Sal       -> XF3
+         Reincorp Licencia Médica, Licencia
+         Médica, Reincorporación Suspensión,
+         Sin Cambio Salarial, y otros         (poco frecuentes)
+       Nota  : Puede contener acentos. Debe ser consistente con MOTIVO.
+
+Valores inválidos típicos:
+  - Descripción inconsistente con MOTIVO
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 10: FECHA_EFECTIVA
+--------------------------------------------------------------------------------
+Descripcion  : Fecha de entrada en vigor del movimiento de personal
+Tipo general : Fecha ISO
+Obligatorio  : Sí
+Longitud     : 10 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Fecha formato ISO YYYY-MM-DD
+       Regex : ^\d{4}-\d{2}-\d{2}$
+       Ejemplos: 2026-02-01, 2024-09-01, 2025-09-01, 2026-03-16
+       Nota  : Rango observado: 2024-09-01 a 2026-04-01. Concentra
+               ~45% de registros en 2026-02-01 (movimiento masivo).
+
+Valores inválidos típicos:
+  - Formato distinto a YYYY-MM-DD
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 11: SEQUENCIA_EFECTIVA
+--------------------------------------------------------------------------------
+Descripcion  : Número de secuencia para movimientos con la misma fecha efectiva
+               (Nota: nombre de columna contiene typo; debería ser SECUENCIA)
+Tipo general : Numérico entero
+Obligatorio  : Sí
+Longitud     : 1 carácter
+
+Patrones válidos detectados:
+
+  [P1] Dígito entero 0-3, casi siempre 0
+       Regex : ^[0-3]$
+       Valores: 0 (~99%), 1 (~1%), 2 y 3 (excepcionales)
+       Nota  : El valor 0 indica que es el único movimiento de esa
+               fecha. Valores 1-3 indican registros subsecuentes
+               en el mismo día para la misma posición.
+
+Valores inválidos típicos:
+  - Valor negativo o mayor a 3
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 12: FECHA_APLICACION
+--------------------------------------------------------------------------------
+Descripcion  : Fecha en que se aplicó administrativamente el movimiento
+Tipo general : Fecha ISO
+Obligatorio  : Sí
+Longitud     : 10 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Fecha formato ISO YYYY-MM-DD
+       Regex : ^\d{4}-\d{2}-\d{2}$
+       Ejemplos: 2026-02-05, 2024-08-26, 2025-08-29, 2026-02-24
+       Nota  : Generalmente es unos días posterior a FECHA_EFECTIVA.
+               Rango: 2024-08-26 a 2026-03-17.
+
+Valores inválidos típicos:
+  - Formato distinto a YYYY-MM-DD
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 13: HUMANOS_STATUS
+--------------------------------------------------------------------------------
+Descripcion  : Estado del empleado en el sistema de Recursos Humanos
+Tipo general : Texto catálogo
+Obligatorio  : Sí
+Longitud     : 1 carácter
+
+Patrones válidos detectados:
+
+  [P1] Valor fijo "A" (activo) en el 100% de los registros
+       Regex : ^A$
+       Nota  : Esta plantilla solo contiene empleados activos, por lo
+               que este campo es constante. Cualquier valor distinto
+               a A indicaría un registro fuera de lugar.
+
+Valores inválidos típicos:
+  - Cualquier valor distinto a A
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 14: NOMINA_STATUS
+--------------------------------------------------------------------------------
+Descripcion  : Estado del empleado en el sistema de nómina
+Tipo general : Texto catálogo
+Obligatorio  : Sí
+Longitud     : 1 carácter
+
+Patrones válidos detectados:
+
+  [P1] Letra mayúscula, catálogo de 4 valores
+       Regex : ^[APSL]$
+       Valores:
+         A = Activo en nómina       (~99.4%)
+         P = Pendiente de proceso   (~0.3%, 29 registros)
+         S = Suspendido             (~0.2%, 23 registros)
+         L = Licencia               (<0.1%,  3 registros)
+       Nota  : El valor predominante es A. P/S/L son estados
+               transitorios de empleados técnicamente activos en RH
+               pero con situación especial en nómina.
+
+Valores inválidos típicos:
+  - Valor fuera de A, P, S, L
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 15: PARTIDA
+--------------------------------------------------------------------------------
+Descripcion  : Partida presupuestal del gasto de nómina
+Tipo general : Numérico
+Obligatorio  : Sí
+Longitud     : 5 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Código presupuestal, catálogo cerrado de 2 valores
+       Regex : ^1[12]301$
+       Valores:
+         11301 = Sueldos base personal permanente (~52%)
+         12201 = Honorarios asimilables a salarios (~48%)
+       Nota  : Solo 2 valores en empleados activos (vs 4 en Posiciones).
+               11301 = personal de base; 12201 = personal de confianza.
+
+Valores inválidos típicos:
+  - Valor distinto a 11301 o 12201
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 16: UNIDAD_GENERAL
+--------------------------------------------------------------------------------
+Descripcion  : Código de la unidad general organizacional
+Tipo general : Numérico
+Obligatorio  : Sí
+Longitud     : 1-3 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Código de 3 dígitos múltiplo de 100 (formato principal)
+       Regex : ^[1-9]00$
+       Valores: 100, 200, 300, 400, 500, 600, 700, 800, 900
+       Nota  : ~95% de los registros. Mismo catálogo que en Posiciones.
+
+  [P2] Dígito simple 1-4 (variante abreviada)
+       Regex : ^[1-4]$
+       Valores: 4 (~3%), 3 (<1%), 2 (<1%), 1 (<1%)
+       Nota  : Mismos registros que usan UNIDAD_ADMON abreviado.
+
+Valores inválidos típicos:
+  - Valor que no corresponde al catálogo conocido
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 17: UNIDAD_ADMON
+--------------------------------------------------------------------------------
+Descripcion  : Código de la unidad administrativa específica
+Tipo general : Numérico
+Obligatorio  : Sí
+Longitud     : 1-3 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Código de 3 dígitos (formato principal)
+       Regex : ^\d{3}$
+       Ejemplos: 100, 105, 110, 113, 120, 132, 138, 139, 140, 500, 900
+       Nota  : 65 valores únicos. Los más frecuentes son aduanas
+               específicas (139, 120, 138, 113, 140, 124, 132).
+               Diferente de UNIDAD_GENERAL: UNIDAD_ADMON identifica
+               la aduana o dirección concreta del empleado.
+
+  [P2] Dígito simple 1-4 (variante abreviada)
+       Regex : ^[1-4]$
+       Nota  : Mismo subconjunto que usa UNIDAD_GENERAL abreviado.
+
+Valores inválidos típicos:
+  - Código no registrado en el catálogo
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 18: DEPARTAMENTO
+--------------------------------------------------------------------------------
+Descripcion  : Código del departamento del empleado
+Tipo general : Numérico
+Obligatorio  : Sí
+Longitud     : 9 u 11 dígitos
+
+Patrones válidos detectados:
+
+  [P1] Numérico 11 dígitos (formato principal)
+       Regex : ^\d{11}$
+       Ejemplos: 13903010000, 12001200000, 11301130000, 14003020000
+       Nota  : ~95% de los registros. Los primeros 3 dígitos
+               corresponden a UNIDAD_ADMON.
+
+  [P2] Numérico 9 dígitos (variante para unidades centrales)
+       Regex : ^\d{9}$
+       Ejemplos: 100000000, 401000000, 500000000
+       Nota  : ~5% de los registros. Corresponde a los registros
+               con UNIDAD_GENERAL de 1 dígito o unidades globales.
+
+Valores inválidos típicos:
+  - Longitud distinta a 9 u 11
+  - Caracteres no numéricos
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 19: DEPENDENCIA_DIRECTA
+--------------------------------------------------------------------------------
+Descripcion  : Posición del jefe directo del empleado
+Tipo general : Numérico
+Obligatorio  : Sí
+Longitud     : 8 dígitos exactos
+
+Patrones válidos detectados:
+
+  [P1] Numérico 8 dígitos, mismos prefijos que POSICION
+       Regex : ^(103|201|202)\d{5}$
+       Ejemplos: 10300009, 20235029, 10333883, 20235195
+       Nota  : A diferencia de Posiciones (col 15), en esta plantilla
+               el campo es obligatorio (0 vacíos). 1,195 valores únicos.
+               Referencia a POSICION del catálogo de posiciones.
+
+Valores inválidos típicos:
+  - Longitud distinta a 8
+  - Campo vacío
+  - Prefijo fuera de los conocidos
+
+--------------------------------------------------------------------------------
+COLUMNA 20: PLAN_SALARIAL
+--------------------------------------------------------------------------------
+Descripcion  : Clave del plan salarial del empleado
+Tipo general : Texto catálogo
+Obligatorio  : No (~1.5% vacíos)
+Longitud     : 4 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Código alfabético 4 mayúsculas, catálogo de 12 valores
+       Regex : ^[A-Z]{4}$
+       Valores y frecuencias:
+         EVEN = Evaluación Enlace              (~41%)
+         PREN = Profesional Enlace             (~30%)
+         PROB = Profesional Operativo Base     (~12%)
+         PRMM = Profesional Mando Medio        (~8%)
+         EVMM = Evaluación Mando Medio         (~7%)
+         PROC = Profesional Operativo C        (~1%)
+         EVMS = Evaluación Mando Superior      (<1%)
+         PREL = Profesional Enlace (variante)  (<1%)
+         PRMS = Profesional Mando Superior     (<1%)
+         PREF = Profesional Enlace Federal     (<1%)
+         PRML = Profesional Mando Laudo        (<1%)
+         PREB = Profesional Enlace Base        (<1%)
+       Nota  : Subconjunto del catálogo de Posiciones (17 valores).
+               Ausentes: HHPF, PRLD, EVMS completo, PEXT, PRMB, EVOC.
+
+Valores inválidos típicos:
+  - Código fuera del catálogo de 12 valores
+  - Longitud distinta a 4
+
+--------------------------------------------------------------------------------
+COLUMNA 21: GRADO
+--------------------------------------------------------------------------------
+Descripcion  : Grado salarial dentro del plan salarial
+Tipo general : Alfanumérico
+Obligatorio  : Sí
+Longitud     : 1-3 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Formato P + dígito (planes PREN/EVEN)
+       Regex : ^P[1-3]$
+       Valores: P1 (~60%), P3 (~11%), P2 (<1%)
+
+  [P2] Formato D + dígito (planes PRMM/EVMM)
+       Regex : ^D[1-3]$
+       Valores: D2 (~4%), D3 (~3%), D1 (~2%)
+
+  [P3] Formato S + dígito/sufijo (supervisores)
+       Regex : ^S[1-4](N|M)?$
+       Valores: S2 (~2%), S1 (~1%), S3N (<1%), S4 (<1%), S3M (<1%)
+
+  [P4] Formato A + dígito/sufijo (administrativos)
+       Regex : ^A[1-4](L|M)?$
+       Valores: A2M (<1%), A1 (<1%), A2L (<1%), A4 (<1%), A3 (<1%)
+
+  [P5] Numérico puro (planes PROB/PROC — operativos)
+       Regex : ^\d{1,2}$
+       Valores: 8 (~4%), 11 (~4%), 7 (~3%), 5 (~1%), 6 (~1%), 2 (<1%), 3 (<1%)
+
+  [P6] Código especial K1 (mandos superiores)
+       Regex : ^K1$
+       Nota  : ~0.4% de registros. Corresponde a PLAN_SALARIAL EVMS/PRMS.
+
+  [P7] Código especial J1 (nivel director general)
+       Regex : ^J1$
+       Nota  : 1 registro. Nivel más alto observado.
+
+Valores inválidos típicos:
+  - Grado incompatible con PLAN_SALARIAL
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 22: ESCALA
+--------------------------------------------------------------------------------
+Descripcion  : Escalón salarial dentro del grado
+Tipo general : Numérico entero
+Obligatorio  : Sí
+Longitud     : 1-2 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Número entero del 1 al 19
+       Regex : ^([1-9]|1[0-9])$
+       Valores más frecuentes: 2 (~47%), 3 (~38%), 12 (~4%), 1 (~3%),
+                               5 (~1%), 6 (~1%)
+       Nota  : 17 valores únicos. Los escalones 2-3 concentran ~85%
+               de los registros. Mismo rango que en Posiciones.
+
+Valores inválidos típicos:
+  - Valor 0 o mayor a 19
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 23: PUESTO_PRESUPUESTAL
+--------------------------------------------------------------------------------
+Descripcion  : Clave del puesto en la estructura presupuestal de compensaciones
+Tipo general : Alfanumérico
+Obligatorio  : Sí
+Longitud     : 6, 7 o 10 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Prefijo CF + letra + 3 dígitos + char + 3 dígitos (10 chars)
+       Regex : ^CF[A-Z]\d{3}[A-Z0-9]\d{3}$
+       Ejemplos: CFP1226051, CFP1326050, CFP3326054, CFO330D312
+       Nota  : Formato más frecuente (~87%). Idéntico a PUESTO_ESTRUCTURA
+               de la plantilla Posiciones.
+
+  [P2] Prefijo T + 5 dígitos (6 chars, puestos técnicos base)
+       Regex : ^T\d{5}$
+       Ejemplos: T03255, T03823, T03254, T12810, T12804
+       Nota  : ~11% de registros. Correlaciona con PLAN_SALARIAL PROB/PROC.
+
+  [P3] Prefijo CF + 5 dígitos (7 chars)
+       Regex : ^CF\d{5}$
+       Ejemplos: CF21909, CF33883, CF33938
+       Nota  : ~1.3% de registros.
+
+  [P4] Prefijo PLP o PLO + 10 chars (laudos)
+       Regex : ^PL[OP]\d{7}$
+       Ejemplos: PLO2005324, PLP1305780, PLP3305476
+       Nota  : ~0.2% de registros (15 casos). Puestos de laudo.
+
+  [P5] Prefijo A0 o S0 + 5 dígitos (6 chars, variante especial)
+       Regex : ^[AS]0\d{4}$
+       Ejemplos: A01407, A01807, S01478, A01943
+       Nota  : ~0.4% de registros (38 casos). Posibles claves de
+               estructura anterior o puestos especiales.
+
+Valores inválidos típicos:
+  - Prefijo fuera de CF, T, PLP, PLO, A0, S0
+  - Longitud fuera de 6, 7 o 10
+  - Incompatibilidad con PLAN_SALARIAL
+
+--------------------------------------------------------------------------------
+COLUMNA 24: NIVEL_TABULAR
+--------------------------------------------------------------------------------
+Descripcion  : Nivel tabular o clave de tabulador salarial
+Tipo general : Alfanumérico
+Obligatorio  : No (~0.1% vacíos, 7 registros)
+Longitud     : 1-4 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Formato P + 2 dígitos (planes PREN/EVEN — enlace)
+       Regex : ^P\d{2}$
+       Valores: P12 (~38%), P13 (~22%), P33 (~8%), P32 (~2%), P31 (~1%)
+       Nota  : Formato más frecuente (~71%). Los 2 dígitos combinan
+               familia y escala del tabulador.
+
+  [P2] Numérico puro (planes PROB/PROC — operativos)
+       Regex : ^\d{1,2}$
+       Valores: 8 (~4%), 11 (~4%), 7 (~3%), 5 (~1%), 6 (~1%)
+       Nota  : ~13% de registros. Mismo valor que GRADO para operativos.
+
+  [P3] Formato D + 3 dígitos (planes PRMM/EVMM — mandos medios)
+       Regex : ^D\d{3}$
+       Valores: D312 (~2%), D212 (~2%), D202 (~1%), D203 (<1%)
+       Nota  : ~9% de registros.
+
+  [P4] Formato S + 3 dígitos (supervisores)
+       Regex : ^S\d{3}$
+       Valores: S201 (~1%), S105 (<1%), S305 (<1%)
+       Nota  : ~5% de registros.
+
+  [P5] Formato A + 3 dígitos (administrativos/mandos)
+       Regex : ^A\d{3}$
+       Valores: A205 (<1%), A112 (<1%), A206 (<1%)
+       Nota  : ~2% de registros.
+
+  [P6] Formato K + 3 dígitos (mandos superiores)
+       Regex : ^K\d{3}$
+       Valores: K119 (~0.4%), K109 (<0.1%)
+       Nota  : Correlaciona con GRADO=K1.
+
+  [P7] Formato J + 3 dígitos (director general)
+       Regex : ^J\d{3}$
+       Valores: J109 (1 registro)
+       Nota  : Correlaciona con GRADO=J1.
+
+Valores inválidos típicos:
+  - Formato incompatible con PLAN_SALARIAL o GRADO del registro
+  - Longitud fuera del rango 1-4
+
+--------------------------------------------------------------------------------
+COLUMNA 25: GRUPO_DE_PAGO
+--------------------------------------------------------------------------------
+Descripcion  : Grupo de pago del empleado
+Tipo general : Texto catálogo
+Obligatorio  : Sí
+Longitud     : 9-10 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Formato SAT_XX_YYY, catálogo de 11 valores
+       Regex : ^SAT_[A-Z]{2,4}_[A-Z]{2,4}$
+       Valores y frecuencias:
+         SAT_EV_ENL  = Evaluación Enlace         (~41%)
+         SAT_PR_ENL  = Profesional Enlace         (~30%)
+         SAT_PR_OPB  = Profesional Operativo B    (~12%)
+         SAT_PR_MM   = Profesional Mando Medio    (~8%)
+         SAT_EV_MM   = Evaluación Mando Medio     (~7%)
+         SAT_PR_OPC  = Profesional Operativo C    (~1%)
+         SAT_LD_CFZ  = Laudos CFZA               (<1%)
+         SAT_EV_MS   = Evaluación Mando Superior  (<1%)
+         SAT_PR_MS   = Profesional Mando Superior (<1%)
+         SAT_PR_ENF  = Profesional Enlace Federal (<1%)
+         SAT_LD_BSE  = Laudos Base               (<1%)
+       Nota  : Subconjunto del catálogo de Posiciones. Correlaciona
+               con PLAN_SALARIAL. No aparece el valor "PREN" atípico
+               que se veía en Posiciones.
+
+Valores inválidos típicos:
+  - Valor fuera del catálogo de 11 valores
+  - Inconsistencia con PLAN_SALARIAL
+
+--------------------------------------------------------------------------------
+COLUMNA 26: BENEFICIOS
+--------------------------------------------------------------------------------
+Descripcion  : Clave del paquete de beneficios del empleado
+Tipo general : Texto catálogo
+Obligatorio  : Sí
+Longitud     : 3 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Prefijo PB + letra
+       Regex : ^PB[A-NP-Z]$
+       Valores: PBP (~69%), PBA (~13%), PBO (~10%), PBN (~4%),
+                PBK (~2%), PBM (~2%), PBL (<1%), PBF (<1%), PBJ (<1%)
+       Nota  : Mismo catálogo que en Posiciones. Correlaciona con
+               GRUPO_DE_PAGO y PLAN_SALARIAL.
+
+  [P2] Prefijo PL + dígito (beneficios de laudos)
+       Regex : ^PL[12]$
+       Valores: PL1 (<1%), PL2 (<1%)
+
+  [P3] Valor especial PGP
+       Regex : ^PGP$
+       Nota  : 1 registro.
+
+Valores inválidos típicos:
+  - Valor fuera del catálogo de 12 valores
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 27: SMB
+--------------------------------------------------------------------------------
+Descripcion  : Sueldo mensual base del empleado
+Tipo general : Numérico (entero o decimal)
+Obligatorio  : Sí
+Longitud     : 5-8 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Número decimal con 2 decimales (sueldos tabulados)
+       Regex : ^\d{5,6}\.\d{2}$
+       Ejemplos: 20118.82, 22380.16, 28166.36, 28411.36
+       Nota  : ~82% de los registros. Formato principal para
+               empleados en tablas salariales actualizadas.
+
+  [P2] Número entero sin decimales (sueldos históricos o especiales)
+       Regex : ^\d{5,6}$
+       Ejemplos: 179509, 164449, 98041, 133900, 152374
+       Nota  : ~18% de los registros. Valores mayores en magnitud
+               que los decimales; corresponden a puestos de nivel
+               alto (directores, mandos superiores). 440 valores únicos.
+
+Valores inválidos típicos:
+  - Valor negativo o cero
+  - Más de 2 decimales
+  - Campo vacío
+  - Caracteres no numéricos (excepto punto decimal)
+
+--------------------------------------------------------------------------------
+COLUMNA 28: PUESTO
+--------------------------------------------------------------------------------
+Descripcion  : Clave del puesto funcional del empleado
+Tipo general : Alfanumérico
+Obligatorio  : Sí
+Longitud     : 6 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Prefijo AD + 4 dígitos
+       Regex : ^AD\d{4}$
+       Ejemplos: AD6229, AD6345, AD6387, AD2347, AD1001, AD2049
+       Nota  : Formato más frecuente (~89%). Incluye puestos de
+               rango AD1xxx (directores generales) a AD6xxx (enlace).
+               403 valores únicos.
+
+  [P2] Prefijo PT + 4 dígitos
+       Regex : ^PT\d{4}$
+       Ejemplos: PT6005, PT6000
+       Nota  : ~11% de registros. Puestos técnicos base.
+
+Valores inválidos típicos:
+  - Prefijo distinto a AD o PT
+  - Longitud distinta a 6
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 29: UBICACION
+--------------------------------------------------------------------------------
+Descripcion  : Clave del centro de trabajo donde labora el empleado
+Tipo general : Alfanumérico
+Obligatorio  : Sí
+Longitud     : 9 o 10 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Alfanumérico 10 chars con sufijo "PB" o "PA" (centros físicos)
+       Regex : ^\d{6}[A-Z0-9]{2}(PB|PA)$
+       Ejemplos: 020040A1PB, 28027032PB, 301930A1PB, 15120571PA
+       Nota  : ~74% de registros. El sufijo PA aparece para algunos
+               aeropuertos o inmuebles especiales.
+
+  [P2] Numérico 9 dígitos, prefijo 901 (unidades administrativas)
+       Regex : ^901\d{6}$
+       Ejemplos: 901701102, 901510130, 901510121, 901510128
+       Nota  : ~26% de registros. Unidades centrales o sin ubicación
+               física específica. En esta plantilla no aparecen los
+               códigos de 8 dígitos que se veían en Posiciones.
+
+Valores inválidos típicos:
+  - Longitud distinta a 9 o 10
+  - Sufijo distinto a PB/PA cuando tiene 10 chars
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 30: INMUEBLE
+--------------------------------------------------------------------------------
+Descripcion  : Clave del inmueble o edificio donde se ubica el empleado
+Tipo general : Numérico/Alfanumérico
+Obligatorio  : Sí
+Longitud     : 9 o 10 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Numérico 9 dígitos (inmuebles de unidades centrales)
+       Regex : ^90\d{7}$
+       Ejemplos: 901510000, 901701000, 600702000, 900201000
+       Nota  : ~35% de registros. Correlaciona con UBICACION de 9 chars.
+
+  [P2] Alfanumérico 10 chars, derivado de UBICACION sin sufijo PB/PA
+       Regex : ^\d{6}[A-Z0-9]{2}000$
+       Ejemplos: 2802703000, 1512057000, 020040A000, 301930A000
+       Nota  : ~65% de registros. Se construye tomando los 8 primeros
+               chars de UBICACION y añadiendo "000", eliminando el
+               sufijo PB/PA.
+
+Valores inválidos típicos:
+  - Longitud distinta a 9 o 10
+  - Inconsistencia con UBICACION del mismo registro
+
+--------------------------------------------------------------------------------
+COLUMNA 31: FECHA_PREVISTA
+--------------------------------------------------------------------------------
+Descripcion  : Fecha prevista de fin de nombramiento (solo para nombramientos
+               temporales)
+Tipo general : Fecha ISO
+Obligatorio  : No (~50% vacíos — solo aplica a personal de confianza temporal)
+Longitud     : 10 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Fecha formato ISO YYYY-MM-DD, siempre futura
+       Regex : ^\d{4}-\d{2}-\d{2}$
+       Valores más frecuentes: 2026-06-30 (~79%), 2026-04-30 (~12%)
+       Rango: 2023-12-31 a 2026-12-31
+       Nota  : El campo vacío es válido y frecuente. Corresponde
+               a empleados con partida 12201 (honorarios). Los
+               empleados con 11301 generalmente tienen este campo vacío.
+
+Valores inválidos típicos:
+  - Fecha en el pasado (anterior a la FECHA_EFECTIVA del registro)
+  - Formato distinto a YYYY-MM-DD
+
+--------------------------------------------------------------------------------
+COLUMNA 32: ULTIMA_ACTUALIZACION
+--------------------------------------------------------------------------------
+Descripcion  : Fecha y hora de la última actualización del registro
+Tipo general : Timestamp
+Obligatorio  : Sí
+Longitud     : 26 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Timestamp formato IBM DB2: YYYY-MM-DD-HH.MM.SS.FFFFFF
+       Regex : ^\d{4}-\d{2}-\d{2}-\d{2}\.\d{2}\.\d{2}\.\d{6}$
+       Ejemplos: 2025-05-20-18.32.25.000000
+                 2026-02-05-20.08.06.000000
+                 2024-08-26-00.00.00.000000
+       Nota  : Mismo formato que ULTIMA_ACT en Posiciones. Los
+               microsegundos (últimos 6 dígitos) siempre son 000000.
+               Rango: 2024-08-26 a 2026-03-17.
+
+Valores inválidos típicos:
+  - Formato distinto al patrón IBM DB2
+  - Longitud distinta a 26
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 33: ULTIMO_OPERADOR
+--------------------------------------------------------------------------------
+Descripcion  : Identificador del usuario que realizó la última actualización
+Tipo general : Alfanumérico
+Obligatorio  : Sí
+Longitud     : 8 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Código de proceso de sistema
+       Regex : ^[A-Z]{8}$
+       Valores fijos: GOPJ8031 (~57%), SISTEMA (ausente en este archivo),
+                      ANAMCONFIG (ausente), ALINEACION (ausente)
+       Nota  : GOPJ8031 domina ampliamente (~57%).
+
+  [P2] Código de usuario humano (formato clave de operador)
+       Regex : ^[A-Z]{4}\d{3}[A-Z0-9]$
+       Ejemplos: TECE854C, MECA883D, RAPC8211, CANP837I, CAVE74AQ,
+                 CEME8245, CAIE8747, MEGV841D, PEHL65B9
+       Nota  : A diferencia de Posiciones, TODOS los valores tienen
+               exactamente 8 caracteres. 50 usuarios únicos registrados.
+               El formato 4L+3D+1AN es consistente en todos los casos.
+
+Valores inválidos típicos:
+  - Longitud distinta a 8
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 34: ULTIMA_FECHA_INGRESO
+--------------------------------------------------------------------------------
+Descripcion  : Fecha del último ingreso o renovación vigente del empleado
+Tipo general : Fecha ISO
+Obligatorio  : Sí
+Longitud     : 10 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Fecha formato ISO YYYY-MM-DD
+       Regex : ^\d{4}-\d{2}-\d{2}$
+       Ejemplos: 2026-01-01, 2022-01-01, 2025-01-01, 2024-01-01
+       Nota  : Frecuentemente coincide con el inicio de año o quincena.
+               Rango: 2022-01-01 a 2026-03-16. La fecha 2022-01-01
+               (~32%) indica ingreso en la primera carga masiva de ANAM.
+
+Valores inválidos típicos:
+  - Formato distinto a YYYY-MM-DD
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 35: FECHA_INGRESO
+--------------------------------------------------------------------------------
+Descripcion  : Fecha original de ingreso del empleado a la organización
+Tipo general : Fecha ISO
+Obligatorio  : Sí
+Longitud     : 10 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Fecha formato ISO YYYY-MM-DD
+       Regex : ^\d{4}-\d{2}-\d{2}$
+       Ejemplos: 2022-01-01, 2022-12-16, 2022-10-16, 2024-03-01
+       Nota  : Rango: 2022-01-01 a 2026-03-16. La fecha 2022-01-01
+               (~44%) es la fecha de constitución de ANAM. Los valores
+               de FECHA_INGRESO y FECHA_ASIGNACION son idénticos en
+               todos los registros del dataset.
+
+Valores inválidos típicos:
+  - Formato distinto a YYYY-MM-DD
+  - Campo vacío
+  - Fecha posterior a FECHA_EFECTIVA
+
+--------------------------------------------------------------------------------
+COLUMNA 36: GRUPO_TRABAJO
+--------------------------------------------------------------------------------
+Descripcion  : Grupo de trabajo o convenio colectivo del empleado
+Tipo general : Texto catálogo
+Obligatorio  : Sí
+Longitud     : 7-8 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Catálogo cerrado de 2 valores
+       Regex : ^SAT_(CFZA|BSE)$
+       Valores:
+         SAT_CFZA = Contrato FSTSE (~88%)
+         SAT_BSE  = Base SAT       (~12%)
+       Nota  : En esta plantilla solo aparecen 2 de los 3 valores
+               observados en Posiciones (el valor SAT_PR_ENL no aparece).
+
+Valores inválidos típicos:
+  - Valor fuera de SAT_CFZA o SAT_BSE
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 37: CODIGO_GRUPO
+--------------------------------------------------------------------------------
+Descripcion  : Código de grupo sindical o especial (campo casi siempre vacío)
+Tipo general : Alfanumérico
+Obligatorio  : No (~99.8% vacíos)
+Longitud     : 6 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] 6 caracteres alfanuméricos, catálogo pequeño
+       Regex : ^[A-Z0-9]{6}$
+       Valores observados: P05324, 125535, 305422, 335984, P05767,
+                           135564, P05342, 135446, 115568, P05509,
+                           P05424, 125573, 125454, 125608, O25539
+       Nota  : Solo 15 registros tienen valor. El patrón alterna
+               entre numérico puro (6 dígitos) y prefijo P + 5 dígitos
+               o prefijo O + 5 dígitos. Para efectos prácticos este
+               campo se trata como siempre vacío.
+
+Valores inválidos típicos:
+  - Longitud distinta a 6 cuando no está vacío
+  - Caracteres especiales
+
+--------------------------------------------------------------------------------
+COLUMNA 38: FECHA_ASIGNACION
+--------------------------------------------------------------------------------
+Descripcion  : Fecha de asignación del empleado a la posición actual
+Tipo general : Fecha ISO
+Obligatorio  : Sí
+Longitud     : 10 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Fecha formato ISO YYYY-MM-DD
+       Regex : ^\d{4}-\d{2}-\d{2}$
+       Nota  : En el 100% de los registros del dataset, FECHA_ASIGNACION
+               es idéntica a FECHA_INGRESO (columna 35). Rango y
+               distribución idénticos. Puede ser un campo redundante
+               o diseñado para capturar cambios de posición futuros.
+
+Valores inválidos típicos:
+  - Formato distinto a YYYY-MM-DD
+  - Discrepancia con FECHA_INGRESO (actualmente siempre iguales)
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 39: RFC
+--------------------------------------------------------------------------------
+Descripcion  : Registro Federal de Contribuyentes del empleado
+Tipo general : Alfanumérico
+Obligatorio  : Sí
+Longitud     : 13 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] RFC persona física con homoclave, formato SAT México
+       Regex : ^[A-Z]{4}\d{6}[A-Z0-9]{3}$
+       Estructura:
+         Posiciones 1-4   : 4 letras (2 apellidos + 1 nombre)
+         Posiciones 5-10  : 6 dígitos (fecha nacimiento AAMMDD)
+         Posiciones 11-13 : 3 chars alfanuméricos (homoclave SAT)
+       Ejemplos: MAMR560812TB5, AICC670717T4A, MESC870420IE7
+       Nota  : 100% de los registros son válidos (9,228/9,228).
+               Todos únicos (identificador de persona).
+
+Valores inválidos típicos:
+  - Longitud distinta a 13
+  - Caracteres en posiciones incorrectas
+  - RFC duplicado (debería ser único)
+
+--------------------------------------------------------------------------------
+COLUMNA 40: CURP
+--------------------------------------------------------------------------------
+Descripcion  : Clave Única de Registro de Población del empleado
+Tipo general : Alfanumérico
+Obligatorio  : Sí
+Longitud     : 18 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] CURP estándar México
+       Regex : ^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]{2}$
+       Estructura:
+         Posiciones 1-4   : 4 letras (2 apellidos + nombre + letra interna)
+         Posiciones 5-10  : 6 dígitos (fecha nacimiento AAMMDD)
+         Posición 11      : H (Hombre) o M (Mujer)
+         Posiciones 12-16 : 5 letras (estado + consonantes nombre/apellidos)
+         Posiciones 17-18 : 2 chars alfanuméricos (diferenciador + dígito)
+       Ejemplos: MAMR560812HDFRLF02, AICC670717MDFVNL05
+       Nota  : 100% de los registros son válidos (9,228/9,228). Todos
+               únicos. El carácter en pos. 11 correlaciona con GENERO.
+
+Valores inválidos típicos:
+  - Longitud distinta a 18
+  - Posición 11 con valor distinto a H o M
+  - CURP duplicado (debería ser único)
+  - Inconsistencia entre posición 11 (H/M) y GENERO del registro
+
+--------------------------------------------------------------------------------
+COLUMNA 41: ID_PERSONA
+--------------------------------------------------------------------------------
+Descripcion  : Identificador interno de la persona en el sistema de RH
+Tipo general : Numérico
+Obligatorio  : Sí
+Longitud     : 4-6 dígitos
+
+Patrones válidos detectados:
+
+  [P1] Número entero positivo, identificador único de persona
+       Regex : ^\d{4,6}$
+       Ejemplos: 360033, 360301, 364004, 65985, 32689, 255974
+       Nota  : 9,228 valores únicos (1 por empleado). El rango observado
+               es amplio (~32,000 a ~366,000) indicando que este ID es
+               global en el sistema origen. Los 4 dígitos son casos
+               de empleados con ID muy bajo (ingreso histórico al sistema).
+
+Valores inválidos típicos:
+  - Valor 0 o negativo
+  - ID duplicado (debería ser único por empleado)
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 42: NIVEL (texto)
+--------------------------------------------------------------------------------
+Descripcion  : Nivel jerárquico del empleado expresado como texto descriptivo
+               (Nota: esta columna y la siguiente tienen el mismo nombre "NIVEL"
+               en el encabezado; son complementarias)
+Tipo general : Texto catálogo
+Obligatorio  : Sí
+Longitud     : 6-19 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Descripción textual, catálogo cerrado de 8 valores
+       Regex : ^.{6,19}$
+       Valores y frecuencias:
+         Enlace              (~71%)
+         Operativo Base      (~12%)
+         Jefe Departamento   (~9%)
+         Subdirector         (~5%)
+         Director            (~2%)
+         Operativo Confianza (~1%)
+         Director Central    (<1%)
+         Director General    (<1%, 1 registro)
+       Nota  : Correlaciona 1 a 1 con NIVEL numérico (col 43).
+
+Valores inválidos típicos:
+  - Valor fuera del catálogo de 8 niveles
+  - Inconsistencia con NIVEL numérico de la misma fila
+
+--------------------------------------------------------------------------------
+COLUMNA 43: NIVEL (numérico)
+--------------------------------------------------------------------------------
+Descripcion  : Nivel jerárquico del empleado expresado como número
+               (Nota: misma columna duplicada en nombre; es la versión numérica)
+Tipo general : Numérico entero
+Obligatorio  : Sí
+Longitud     : 1 carácter
+
+Patrones válidos detectados:
+
+  [P1] Dígito del 1 al 8, catálogo cerrado
+       Regex : ^[1-8]$
+       Correspondencia con NIVEL texto:
+         1 = Director General    (<1%)
+         2 = Director Central    (<1%)
+         3 = Director            (~2%)
+         4 = Subdirector         (~5%)
+         5 = Jefe Departamento   (~9%)
+         6 = Enlace              (~71%)
+         7 = Operativo Confianza (~1%)
+         8 = Operativo Base      (~12%)
+       Nota  : Misma escala que NIVEL_DE en Posiciones. Valores
+               menores = jerarquía más alta.
+
+Valores inválidos típicos:
+  - Valor fuera del rango 1-8
+  - Inconsistencia con NIVEL texto de la misma fila
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 44: UNIDAD_ADMINISTRATIVA
+--------------------------------------------------------------------------------
+Descripcion  : Nombre completo de la unidad administrativa donde trabaja el
+               empleado (aduana o dirección general)
+Tipo general : Texto libre (catálogo cerrado en la práctica)
+Obligatorio  : Sí
+Longitud     : 25-90 caracteres
+
+Patrones válidos detectados:
+
+  [P1] Texto descriptivo en español, catálogo de 65 valores únicos
+       Regex : ^.{25,90}$
+       Valores más frecuentes:
+         Aduana del Aeropuerto Internacional CDMX (~6%)
+         Aduana de Tijuana                         (~5%)
+         Unidad de Administración y Finanzas       (~5%)
+         Aduana de Veracruz                        (~4%)
+         Aduana de Nuevo Laredo                    (~4%)
+         Aduana de Cancún                          (~4%)
+         (y 59 unidades más, principalmente aduanas)
+       Nota  : Incluye nombres de aduanas ("Aduana de X con sede en Y"),
+               direcciones generales, y la ANAM. Puede contener acentos,
+               comas y el carácter \xa0 (espacio no separable) en algunos
+               nombres largos.
+
+Valores inválidos típicos:
+  - Nombre no perteneciente al catálogo de 65 unidades
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 45: GENERO
+--------------------------------------------------------------------------------
+Descripcion  : Género del empleado
+Tipo general : Texto catálogo
+Obligatorio  : Sí
+Longitud     : 1 carácter
+
+Patrones válidos detectados:
+
+  [P1] Letra mayúscula, catálogo de 2 valores
+       Regex : ^[HM]$
+       Valores: H = Hombre (~61%), M = Mujer (~39%)
+       Nota  : Debe ser consistente con el carácter en posición 11
+               de la CURP (H → H, M → M).
+
+Valores inválidos típicos:
+  - Valor distinto a H o M
+  - Campo vacío
+  - Inconsistencia con la CURP del mismo registro
+
+--------------------------------------------------------------------------------
+COLUMNA 46: FECHA_ENTRADA_POSICION
+--------------------------------------------------------------------------------
+Descripcion  : Fecha en que el empleado entró a la posición actual
+Tipo general : Fecha ISO
+Obligatorio  : Sí
+Longitud     : 10 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Fecha formato ISO YYYY-MM-DD
+       Regex : ^\d{4}-\d{2}-\d{2}$
+       Ejemplos: 2022-01-01, 2022-12-16, 2023-12-01, 2026-03-01
+       Nota  : Rango: 2022-01-01 a 2026-04-01. En el 100% de los
+               registros del dataset, FECHA_ENTRADA_POSICION es idéntica
+               a FECHA_POSICION (columna 47). Ambas reflejan la misma
+               fecha de asignación a la posición.
+
+Valores inválidos típicos:
+  - Formato distinto a YYYY-MM-DD
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 47: FECHA_POSICION
+--------------------------------------------------------------------------------
+Descripcion  : Fecha de la posición (idéntica a FECHA_ENTRADA_POSICION en
+               todos los registros observados)
+Tipo general : Fecha ISO
+Obligatorio  : Sí
+Longitud     : 10 caracteres exactos
+
+Patrones válidos detectados:
+
+  [P1] Fecha formato ISO YYYY-MM-DD
+       Regex : ^\d{4}-\d{2}-\d{2}$
+       Nota  : En el 100% del dataset es idéntica a FECHA_ENTRADA_POSICION
+               (col 46). Misma distribución y rango. Posiblemente es
+               un campo duplicado o reservado para uso futuro.
+
+Valores inválidos típicos:
+  - Formato distinto a YYYY-MM-DD
+  - Discrepancia con FECHA_ENTRADA_POSICION (actualmente siempre iguales)
+  - Campo vacío
+
+--------------------------------------------------------------------------------
+COLUMNA 48: FFAA
+--------------------------------------------------------------------------------
+Descripcion  : Indicador de adscripción a Fuerzas Armadas
+Tipo general : Texto catálogo
+Obligatorio  : No (~65% vacíos — solo aplica a personal militar adscrito)
+Longitud     : 12-18 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Catálogo cerrado de 5 valores
+       Regex : ^(SEDENA|SEMAR)(\s(Activo|Inactivo|G\.N\.\sActivo))$
+       Valores:
+         SEDENA Activo    = SEDENA comisionado activo  (~79%)
+         SEMAR Activo     = SEMAR comisionado activo   (~13%)
+         SEMAR Inactivo   = SEMAR comisionado inactivo (~3%)
+         SEDENA G.N. Activo = Guardia Nacional activo  (~2%)
+         SEDENA Inactivo  = SEDENA comisionado inactivo (~2%)
+       Nota  : El campo vacío es normal (~65%). Los valores "Activo"
+               indican comisión vigente; "Inactivo" indica que la
+               comisión militar terminó pero el registro permanece.
+
+Valores inválidos típicos:
+  - Valor fuera del catálogo de 5 opciones
+  - Combinación inválida (ej. SEMAR G.N.)
+
+--------------------------------------------------------------------------------
+COLUMNA 49: GRADO_FA
+--------------------------------------------------------------------------------
+Descripcion  : Grado militar del empleado adscrito a Fuerzas Armadas
+Tipo general : Texto catálogo
+Obligatorio  : No (~68% vacíos — solo aplica a personal con FFAA lleno)
+Longitud     : 4-28 caracteres cuando está lleno
+
+Patrones válidos detectados:
+
+  [P1] Grados militares del Ejército Mexicano (SEDENA)
+       Regex : ^.{4,28}$
+       Valores:
+         Soldado             (~50%)
+         Sargento 2/o        (~17%)
+         Cabo                (~15%)
+         Sargento 1/o        (~2%)
+         Subteniente         (~1%)
+         Teniente            (~2%)
+         Capitán Segundo     (~2%)
+         Capitán Primero     (<1%)
+         Mayor               (<1%)
+         Teniente Coronel    (<1%)
+         Coronel             (<1%)
+         General de Brigada o de Ala    (<1%)
+         General Brigadier o de Grupo   (<1%)
+         General de División            (<1%)
+
+  [P2] Grados de la Marina Mexicana (SEMAR)
+       Valores:
+         Marinero            (~1%)
+         Guardiamarina/primer maestre (<1%)
+         Tercer Maestre      (~1%)
+         Segundo Maestre     (~1%)
+         Primer Maestre      (~2%)
+         Teniente de Corbeta (~1%)
+         Teniente de Fragata (~1%)
+         Teniente de Navío   (<1%)
+         Capitán de Corbeta  (<1%)
+         Capitán de Fragata  (<1%)
+         Capitán de Navío    (<1%)
+         Contraalmirante     (<1%)
+         Vicealmirante       (<1%)
+         Almirante           (<1%)
+       Nota  : El campo puede estar vacío incluso cuando FFAA está
+               lleno (algunos registros con FFAA=SEDENA Inactivo no
+               tienen grado). 28 grados únicos en total.
+
+Valores inválidos típicos:
+  - Grado no perteneciente al catálogo militar conocido
+  - Inconsistencia con el valor de FFAA (grado SEMAR con SEDENA)
+
+================================================================================
+FIN DEL ARCHIVO — VERSION 1.0 (49 columnas analizadas)
+Fuente: zafiro_info_Empleados_Activos.csv | Registros analizados: 9,228
+================================================================================

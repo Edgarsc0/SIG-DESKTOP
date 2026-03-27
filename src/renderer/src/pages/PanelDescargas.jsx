@@ -42,6 +42,7 @@ function PanelDescargas() {
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [carpeta, setCarpeta] = useState(() => localStorage.getItem('carpeta_descarga') ?? null)
   const [headless, setHeadless] = useState(true)
+  const [detectarErrores, setDetectarErrores] = useState(true)
   const [logs, setLogs] = useState([])
   const [descargando, setDescargando] = useState(false)
   const [completado, setCompletado] = useState(false)
@@ -116,6 +117,12 @@ function PanelDescargas() {
         await window.api.iniciarDescarga(ids, downloadDir, headless)
       }
 
+      if (detectarErrores && ids.length > 0) {
+        setLogs((prev) => [...prev, 'Iniciando detección y corrección de errores...'])
+        await window.api.corregirArchivos(downloadDir)
+        setLogs((prev) => [...prev, 'Corrección completada. Archivos en carpeta Corregidos/'])
+      }
+
       //Descargamos el archivo de movimientos de empleados.
       if (descargarMovimientos)
         await window.api.iniciarDescargaMovimientosAnamXlsx(downloadDir, headless)
@@ -184,32 +191,36 @@ function PanelDescargas() {
       </div>
 
       {/* Barra de estadísticas */}
-      <div className="relative flex items-center justify-between mb-6 p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm gap-4 overflow-hidden">
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="flex items-center gap-2 text-slate-400 text-sm shrink-0">
-            <Files size={16} />
-            <span>{archivos.length} archivos</span>
-          </div>
-          <div className="w-px h-4 bg-white/10 shrink-0" />
-          <div className="flex items-center gap-2 text-sm shrink-0">
-            <span className="text-slate-400">Sel:</span>
-            <span className="text-amber-400 font-semibold">{seleccionados.size}</span>
-          </div>
-          <div className="w-px h-4 bg-white/10 shrink-0" />
+      <div className="relative mb-6 p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm flex flex-col gap-3">
+        {/* Fila 1: carpeta + contadores */}
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={elegirCarpeta}
-            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors min-w-0"
+            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors min-w-0 flex-1"
           >
             <FolderOpen size={15} className="text-amber-400 shrink-0" />
-            <span className="truncate">{carpeta ?? 'Elegir carpeta...'}</span>
+            <span className="truncate">{carpeta ?? 'Elegir carpeta de destino...'}</span>
           </button>
+          <div className="flex items-center gap-3 shrink-0 text-sm">
+            <div className="flex items-center gap-1.5 text-stone-500">
+              <Files size={14} />
+              <span>{archivos.length}</span>
+            </div>
+            <div className="w-px h-4 bg-white/10" />
+            <div className="flex items-center gap-1 text-sm">
+              <span className="text-stone-500">Sel:</span>
+              <span className="text-amber-400 font-semibold">{seleccionados.size}</span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-4 shrink-0">
-          {/* Toggle headless */}
+        <div className="h-px bg-white/5" />
+
+        {/* Fila 2: toggles + seleccionar todos */}
+        <div className="flex items-center gap-4 flex-wrap">
           <button
             onClick={() => setHeadless((v) => !v)}
-            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
             title={headless ? 'Navegador oculto' : 'Navegador visible'}
           >
             <div
@@ -219,19 +230,32 @@ function PanelDescargas() {
                 className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 ${headless ? 'left-4' : 'left-0.5'}`}
               />
             </div>
-            <span className="text-xs">{headless ? 'Sin ventana' : 'Con ventana'}</span>
+            {headless ? 'Sin ventana' : 'Con ventana'}
           </button>
 
           <div className="w-px h-4 bg-white/10" />
 
           <button
-            onClick={toggleTodos}
-            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+            onClick={() => setDetectarErrores((v) => !v)}
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
+            title="Detectar y corregir errores en columnas"
           >
             <div
-              className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
-                todosSeleccionados ? 'bg-amber-600 border-amber-600' : 'border-stone-600'
-              }`}
+              className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${detectarErrores ? 'bg-amber-600' : 'bg-stone-600'}`}
+            >
+              <div
+                className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 ${detectarErrores ? 'left-4' : 'left-0.5'}`}
+              />
+            </div>
+            Detectar y corregir errores en los archivos csv
+          </button>
+
+          <button
+            onClick={toggleTodos}
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors ml-auto"
+          >
+            <div
+              className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${todosSeleccionados ? 'bg-amber-600 border-amber-600' : 'border-stone-600'}`}
             >
               {todosSeleccionados && <Check size={10} strokeWidth={3} className="text-white" />}
             </div>
