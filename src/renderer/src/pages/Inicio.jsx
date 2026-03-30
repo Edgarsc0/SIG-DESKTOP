@@ -31,7 +31,7 @@ function Inicio() {
           <div className="h-px w-24 bg-linear-to-l from-transparent to-amber-600/50" />
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-10 max-w-sm mx-auto w-full">
+        <div className="grid grid-cols-1 gap-3 mb-10 max-w-sm mx-auto w-full">
           <button
             onClick={() => navigate('/descargas')}
             className="bg-white/5 border border-white/10 rounded-xl p-4 backdrop-blur-sm hover:bg-amber-700/10 hover:border-amber-700/30 transition-colors cursor-pointer text-left"
@@ -42,19 +42,6 @@ function Inicio() {
             <div className="text-white font-semibold text-sm mb-1">Panel de descargas</div>
             <div className="text-stone-500 text-xs">
               Descarga automatizada de archivos del sistema
-            </div>
-          </button>
-
-          <button
-            onClick={() => navigate('/descargas')}
-            className="bg-white/5 border border-white/10 rounded-xl p-4 backdrop-blur-sm hover:bg-amber-700/10 hover:border-amber-700/30 transition-colors cursor-pointer text-left"
-          >
-            <div className="text-amber-400 mb-3">
-              <FileDown size={20} />
-            </div>
-            <div className="text-white font-semibold text-sm mb-1">Corregir archivos .csv</div>
-            <div className="text-stone-500 text-xs">
-              Detecta filas desplazadas e inconsistencias en columnas
             </div>
           </button>
         </div>

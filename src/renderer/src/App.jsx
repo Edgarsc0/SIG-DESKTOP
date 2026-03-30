@@ -35,18 +35,6 @@ function App() {
               </Fade>
             }
           />
-          <Route
-            path="/correcion_deteccion"
-            element={
-              <Fade
-                delay={200} // Wait before starting
-                duration={1000} // Animation duration
-                fraction={0.5} // Trigger when 50% visible
-              >
-                <DeteccionCorreccion />
-              </Fade>
-            }
-          />
         </Routes>
       </main>
     </div>

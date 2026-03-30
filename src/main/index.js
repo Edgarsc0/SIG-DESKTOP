@@ -9,7 +9,6 @@ import { autoUpdater } from 'electron-updater'
 const activeChildren = new Set()
 
 function createWindow() {
-  // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
@@ -19,8 +18,24 @@ function createWindow() {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      webSecurity: false // ← permite fetch a http://127.0.0.1:8000 desde file://
     }
+  })
+
+  // Permite que el renderer conecte al servidor DRF local
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "connect-src 'self' http://127.0.0.1:8000 http://localhost:8000;"
+        ]
+      }
+    })
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -32,8 +47,6 @@ function createWindow() {
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -41,21 +54,13 @@ function createWindow() {
   }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
   ipcMain.on('ping', () => console.log('pong'))
   ipcMain.handle('get-version', () => app.getVersion())
 
@@ -133,13 +138,10 @@ app.whenReady().then(() => {
         })
         activeChildren.add(child)
 
-        child.stdout.on('data', (data) => {
-          event.sender.send('descarga-log', data.toString())
-        })
-
-        child.stderr.on('data', (data) => {
+        child.stdout.on('data', (data) => event.sender.send('descarga-log', data.toString()))
+        child.stderr.on('data', (data) =>
           event.sender.send('descarga-log', `ERROR: ${data.toString()}`)
-        })
+        )
 
         child.on('close', (code) => {
           activeChildren.delete(child)
@@ -150,63 +152,59 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('iniciar-descarga-movimientos-anam-xlsx', async (event, { downloadDir, headless }) => {
-    let scriptPath = is.dev
-      ? join(__dirname, '../../resources/scripts/consultas.js')
-      : join(process.resourcesPath, 'scripts/consultas.js')
+  ipcMain.handle(
+    'iniciar-descarga-movimientos-anam-xlsx',
+    async (event, { downloadDir, headless }) => {
+      let scriptPath = is.dev
+        ? join(__dirname, '../../resources/scripts/consultas.js')
+        : join(process.resourcesPath, 'scripts/consultas.js')
 
-    const sep = process.platform === 'win32' ? ';' : ':'
-    const nodeModulesPath = is.dev
-      ? join(__dirname, '../../node_modules')
-      : `${join(process.resourcesPath, 'app.asar.unpacked/node_modules')}${sep}${join(process.resourcesPath, 'app.asar/node_modules')}`
+      const sep = process.platform === 'win32' ? ';' : ':'
+      const nodeModulesPath = is.dev
+        ? join(__dirname, '../../node_modules')
+        : `${join(process.resourcesPath, 'app.asar.unpacked/node_modules')}${sep}${join(process.resourcesPath, 'app.asar/node_modules')}`
 
-    //Esto ejecutara la consulta en el SIG
-    await new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, [scriptPath, downloadDir, headless ? '1' : '0'], {
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
-      })
-      activeChildren.add(child)
+      await new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, [scriptPath, downloadDir, headless ? '1' : '0'], {
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
+        })
+        activeChildren.add(child)
 
-      child.stdout.on('data', (data) => {
-        event.sender.send('descarga-log', data.toString())
-      })
+        child.stdout.on('data', (data) => event.sender.send('descarga-log', data.toString()))
+        child.stderr.on('data', (data) =>
+          event.sender.send('descarga-log', `ERROR: ${data.toString()}`)
+        )
 
-      child.stderr.on('data', (data) => {
-        event.sender.send('descarga-log', `ERROR: ${data.toString()}`)
-      })
-
-      child.on('close', (code) => {
-        activeChildren.delete(child)
-        if (code === 0) resolve()
-        else reject(new Error(`Proceso terminó con código ${code}`))
-      })
-    })
-
-    //Una vez este lista la consulta para descargar, iniciamos el procedimiento para descargarla.
-    scriptPath = is.dev
-      ? join(__dirname, '../../resources/scripts/descargarExcel.js')
-      : join(process.resourcesPath, 'scripts/descargarExcel.js')
-    await new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, [scriptPath, downloadDir, headless ? '1' : '0'], {
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
-      })
-      activeChildren.add(child)
-
-      child.stdout.on('data', (data) => {
-        event.sender.send('descarga-log', data.toString())
+        child.on('close', (code) => {
+          activeChildren.delete(child)
+          if (code === 0) resolve()
+          else reject(new Error(`Proceso terminó con código ${code}`))
+        })
       })
 
-      child.stderr.on('data', (data) => {
-        event.sender.send('descarga-log', `ERROR: ${data.toString()}`)
-      })
+      scriptPath = is.dev
+        ? join(__dirname, '../../resources/scripts/descargarExcel.js')
+        : join(process.resourcesPath, 'scripts/descargarExcel.js')
 
-      child.on('close', (code) => {
-        activeChildren.delete(child)
-        if (code === 0) resolve()
-        else reject(new Error(`Proceso terminó con código ${code}`))
+      await new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, [scriptPath, downloadDir, headless ? '1' : '0'], {
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
+        })
+        activeChildren.add(child)
+
+        child.stdout.on('data', (data) => event.sender.send('descarga-log', data.toString()))
+        child.stderr.on('data', (data) =>
+          event.sender.send('descarga-log', `ERROR: ${data.toString()}`)
+        )
+
+        child.on('close', (code) => {
+          activeChildren.delete(child)
+          if (code === 0) resolve()
+          else reject(new Error(`Proceso terminó con código ${code}`))
+        })
       })
-    })
-  })
+    }
+  )
 
   createWindow()
 
@@ -223,20 +221,12 @@ app.whenReady().then(() => {
   autoUpdater.checkForUpdatesAndNotify()
 
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

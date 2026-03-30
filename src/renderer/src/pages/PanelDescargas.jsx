@@ -7,46 +7,34 @@ import {
   FolderOpen,
   Terminal,
   X,
-  FolderCheck
+  FolderCheck,
+  Database
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 
 const archivos = [
-  {
-    nombre: 'Posiciones.csv',
-    id: 1
-  },
-  {
-    nombre: 'Empleados_Activos.csv',
-    id: 2
-  },
-  {
-    nombre: 'Empleados_Bajas.csv',
-    id: 3
-  },
-  {
-    nombre: 'Familiares.csv',
-    id: 4
-  },
-  {
-    nombre: 'Escolaridad.csv',
-    id: 7
-  },
-  {
-    nombre: 'Movimientos_ANAM_EMPLEADOS.xlsx',
-    id: 'movimientos_anam_empleados'
-  }
+  { nombre: 'Posiciones.csv', id: 1 },
+  { nombre: 'Empleados_Activos.csv', id: 2 },
+  { nombre: 'Empleados_Bajas.csv', id: 3 },
+  { nombre: 'Familiares.csv', id: 4 },
+  { nombre: 'Escolaridad.csv', id: 7 },
+  { nombre: 'Movimientos_ANAM_EMPLEADOS.xlsx', id: 'movimientos_anam_empleados' }
 ]
+
+// URL del backend DRF — ajusta el puerto si es distinto
+const DRF_BASE_URL = 'http://127.0.0.1:8000'
 
 function PanelDescargas() {
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [carpeta, setCarpeta] = useState(() => localStorage.getItem('carpeta_descarga') ?? null)
   const [headless, setHeadless] = useState(true)
   const [detectarErrores, setDetectarErrores] = useState(true)
+  const [subirABD, setSubirABD] = useState(false)
   const [logs, setLogs] = useState([])
   const [descargando, setDescargando] = useState(false)
   const [completado, setCompletado] = useState(false)
   const [cancelado, setCancelado] = useState(false)
+  const [subiendoBD, setSubiendoBD] = useState(false)
   const [downloadDir, setDownloadDir] = useState(null)
   const logsEndRef = useRef(null)
   const canceladoRef = useRef(false)
@@ -61,6 +49,8 @@ function PanelDescargas() {
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs])
+
+  const agregarLog = (msg) => setLogs((prev) => [...prev, msg])
 
   const elegirCarpeta = async () => {
     const ruta = await window.api.seleccionarCarpeta()
@@ -91,6 +81,35 @@ function PanelDescargas() {
     await window.api.cancelarDescarga()
   }
 
+  // ─── NUEVA FUNCIÓN: llama al endpoint DRF ──────────────────────────────────
+  const handleSubirABD = async (dir) => {
+    setSubiendoBD(true)
+    agregarLog('Iniciando carga a base de datos...')
+    try {
+      const res = await fetch(`${DRF_BASE_URL}/api/subir-a-bd/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ carpeta: dir })
+      })
+      const data = await res.json()
+
+      // Muestra cada log que devuelve el backend
+      if (data.logs && Array.isArray(data.logs)) {
+        data.logs.forEach((l) => agregarLog(l))
+      }
+
+      if (!res.ok || !data.ok) {
+        agregarLog(`ERROR BD: ${data.error ?? 'Error desconocido en el servidor.'}`)
+      } else {
+        agregarLog('✓ Carga a base de datos completada.')
+      }
+    } catch (err) {
+      agregarLog(`ERROR BD: No se pudo conectar al servidor DRF. ${err.message}`)
+    } finally {
+      setSubiendoBD(false)
+    }
+  }
+
   const handleDescargarSeleccionados = async () => {
     if (!carpeta) return
     setLogs([])
@@ -99,40 +118,39 @@ function PanelDescargas() {
     setCancelado(false)
     canceladoRef.current = false
     let descargarMovimientos = false
+
     try {
       const ids = [...seleccionados]
       if (ids.includes('movimientos_anam_empleados')) {
         descargarMovimientos = true
-        const index = ids.indexOf('movimientos_anam_empleados')
-
-        //Quitamos el archivo de descarga de movimientos de empleados.
-        ids.splice(index, 1)
+        ids.splice(ids.indexOf('movimientos_anam_empleados'), 1)
       }
 
-      const downloadDir = await window.api.crearCarpetaDescarga(carpeta)
-      setDownloadDir(downloadDir)
+      const dir = await window.api.crearCarpetaDescarga(carpeta)
+      setDownloadDir(dir)
 
       if (ids.length !== 0) {
-        //Descargamos primero los archivos seleccionados.
-        await window.api.iniciarDescarga(ids, downloadDir, headless)
+        await window.api.iniciarDescarga(ids, dir, headless)
       }
 
       if (detectarErrores && ids.length > 0) {
-        setLogs((prev) => [...prev, 'Iniciando detección y corrección de errores...'])
-        await window.api.corregirArchivos(downloadDir)
-        setLogs((prev) => [...prev, 'Corrección completada. Archivos en carpeta Corregidos/'])
+        agregarLog('Iniciando detección y corrección de errores...')
+        await window.api.corregirArchivos(dir)
+        agregarLog('Corrección completada. Archivos en carpeta Corregidos/')
       }
 
-      //Descargamos el archivo de movimientos de empleados.
-      if (descargarMovimientos)
-        await window.api.iniciarDescargaMovimientosAnamXlsx(downloadDir, headless)
+      if (descargarMovimientos) {
+        await window.api.iniciarDescargaMovimientosAnamXlsx(dir, headless)
+      }
 
       setCompletado(true)
-      setLogs((prev) => [...prev, 'Proceso terminado.'])
+      agregarLog('Proceso terminado.')
+
+      await handleSubirABD(dir)
     } catch {
       if (canceladoRef.current) {
         setCancelado(true)
-        setLogs((prev) => [...prev, 'Proceso cancelado.'])
+        agregarLog('Proceso cancelado.')
       }
     } finally {
       setDescargando(false)
@@ -153,7 +171,7 @@ function PanelDescargas() {
       <div className="relative flex items-start justify-between mb-10">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 rounded-lg  flex items-center justify-center shadow-lg shadow-black-500/20 bg-white/5 transition-all duration-200 hover:shadow-none hover:bg-white/10">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center shadow-lg shadow-black-500/20 bg-white/5 transition-all duration-200 hover:shadow-none hover:bg-white/10">
               <Download size={18} className="text-white" />
             </div>
             <h1 className="text-2xl font-bold text-white">Panel de Descargas</h1>
@@ -171,7 +189,7 @@ function PanelDescargas() {
         <div className="flex-col-reverse sm:flex-row sm:items-center gap-y-4 sm:gap-0">
           <Button
             onClick={handleDescargarSeleccionados}
-            disabled={seleccionados.size === 0 || !carpeta || descargando}
+            disabled={seleccionados.size === 0 || !carpeta || descargando || subiendoBD}
             className="bg-linear-to-r from-amber-700 to-amber-500 hover:from-amber-600 hover:to-amber-400 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-amber-700/20 disabled:opacity-30 disabled:shadow-none transition-all duration-200 flex items-center gap-2"
           >
             <Download size={16} />
@@ -216,8 +234,9 @@ function PanelDescargas() {
 
         <div className="h-px bg-white/5" />
 
-        {/* Fila 2: toggles + seleccionar todos */}
+        {/* Fila 2: toggles */}
         <div className="flex items-center gap-4 flex-wrap">
+          {/* Toggle: headless — DESHABILITADO */}
           <button
             onClick={() => setHeadless((v) => !v)}
             className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
@@ -235,10 +254,10 @@ function PanelDescargas() {
 
           <div className="w-px h-4 bg-white/10" />
 
+          {/* Toggle: detectar errores — DESHABILITADO */}
           <button
             onClick={() => setDetectarErrores((v) => !v)}
             className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
-            title="Detectar y corregir errores en columnas"
           >
             <div
               className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${detectarErrores ? 'bg-amber-600' : 'bg-stone-600'}`}
@@ -250,6 +269,26 @@ function PanelDescargas() {
             Detectar y corregir errores en los archivos csv
           </button>
 
+          <div className="w-px h-4 bg-white/10" />
+
+          {/* Toggle subir a BD — DESHABILITADO (ahora siempre activo) */}
+          <button
+            onClick={() => setSubirABD((v) => !v)}
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
+            title="Cargar archivos a MySQL al finalizar la descarga"
+          >
+            <div
+              className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${subirABD ? 'bg-emerald-600' : 'bg-stone-600'}`}
+            >
+              <div
+                className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 ${subirABD ? 'left-4' : 'left-0.5'}`}
+              />
+            </div>
+            <Database size={12} className={subirABD ? 'text-emerald-400' : 'text-stone-500'} />
+            Subir a base de datos
+          </button>
+
+          {/* Seleccionar todos */}
           <button
             onClick={toggleTodos}
             className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors ml-auto"
@@ -263,8 +302,6 @@ function PanelDescargas() {
           </button>
         </div>
       </div>
-
-      {/* Botón deshabilitado mientras descarga */}
 
       {/* Grid de archivos */}
       <div className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -283,24 +320,17 @@ function PanelDescargas() {
                   : 'bg-white/5 border-white/10 hover:bg-white/8 hover:border-white/20'
               }`}
             >
-              {/* Ícono */}
               <div
-                className={`shrink-0 p-2 rounded-lg transition-colors ${
-                  activo ? 'bg-amber-600/20' : 'bg-white/5 group-hover:bg-white/10'
-                }`}
+                className={`shrink-0 p-2 rounded-lg transition-colors ${activo ? 'bg-amber-600/20' : 'bg-white/5 group-hover:bg-white/10'}`}
               >
                 <FileSpreadsheet
                   size={22}
                   className={activo ? 'text-amber-400' : 'text-stone-400'}
                 />
               </div>
-
-              {/* Texto */}
               <div className="flex-1 min-w-0">
                 <p
-                  className={`text-xs font-semibold truncate transition-colors ${
-                    activo ? 'text-white' : 'text-stone-300 group-hover:text-white'
-                  }`}
+                  className={`text-xs font-semibold truncate transition-colors ${activo ? 'text-white' : 'text-stone-300 group-hover:text-white'}`}
                 >
                   {baseName}
                 </p>
@@ -310,19 +340,11 @@ function PanelDescargas() {
                   .{ext}
                 </span>
               </div>
-
-              {/* Checkbox */}
               <div
-                className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200 ${
-                  activo
-                    ? 'bg-amber-600 border-amber-600'
-                    : 'border-stone-600 group-hover:border-stone-400'
-                }`}
+                className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200 ${activo ? 'bg-amber-600 border-amber-600' : 'border-stone-600 group-hover:border-stone-400'}`}
               >
                 {activo && <Check size={9} className="text-white" strokeWidth={3} />}
               </div>
-
-              {/* Línea inferior activa */}
               {activo && (
                 <div className="absolute bottom-0 left-4 right-4 h-px bg-linear-to-r from-transparent via-amber-500/50 to-transparent" />
               )}
@@ -332,26 +354,27 @@ function PanelDescargas() {
       </div>
 
       {/* Sección de logs */}
-      {(descargando || logs.length > 0) && (
+      {(descargando || subiendoBD || logs.length > 0) && (
         <div className="relative mt-6">
           <div className="flex items-center gap-2 mb-2">
             <Terminal size={14} className="text-amber-400" />
             <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">
               Salida del proceso
             </span>
-            {descargando && (
+
+            {(descargando || subiendoBD) && (
               <span className="flex items-center gap-1.5 text-xs text-amber-400">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                En progreso...
+                {subiendoBD ? 'Subiendo a BD...' : 'En progreso...'}
               </span>
             )}
-            {completado && !descargando && (
+            {completado && !descargando && !subiendoBD && (
               <span className="flex items-center gap-1.5 text-xs text-green-400">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
                 Proceso terminado
               </span>
             )}
-            {completado && !descargando && downloadDir && (
+            {completado && !descargando && !subiendoBD && downloadDir && (
               <button
                 onClick={() => window.api.abrirCarpeta(downloadDir)}
                 className="ml-auto flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors"
@@ -367,11 +390,20 @@ function PanelDescargas() {
               </span>
             )}
           </div>
+
           <div className="bg-black/40 border border-white/10 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs">
             {logs.map((line, i) => (
               <p
                 key={i}
-                className={`leading-relaxed ${line.startsWith('ERROR') ? 'text-red-400' : line.startsWith('Proceso cancelado') ? 'text-amber-400' : 'text-green-400'}`}
+                className={`leading-relaxed ${
+                  line.startsWith('ERROR')
+                    ? 'text-red-400'
+                    : line.startsWith('Proceso cancelado')
+                      ? 'text-amber-400'
+                      : line.startsWith('✓')
+                        ? 'text-emerald-400'
+                        : 'text-green-400'
+                }`}
               >
                 <span className="text-slate-600 select-none mr-2">{`>`}</span>
                 {line}

@@ -5,13 +5,7 @@ import anamLogo from '../assets/anam_logo.png'
 
 const links = [
   { to: '/', icon: Home, label: 'Inicio' },
-  { to: '/descargas', icon: FileDown, label: 'Descargas' },
-  { to: '/base-datos', icon: Database, label: 'Base de Datos' },
-  {
-    to: '/correcion_deteccion',
-    icon: FileScan,
-    label: 'Correción de archivos .csv'
-  }
+  { to: '/descargas', icon: FileDown, label: 'Descargas' }
 ]
 
 function Navbar() {
