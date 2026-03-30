@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
+  isDev: process.env.NODE_ENV === 'development',
   getVersion: () => ipcRenderer.invoke('get-version'),
   seleccionarCarpeta: () => ipcRenderer.invoke('seleccionar-carpeta'),
   crearCarpetaDescarga: (carpeta) => ipcRenderer.invoke('crear-carpeta-descarga', carpeta),
@@ -17,7 +18,10 @@ const api = {
     ipcRenderer.invoke('iniciar-descarga-movimientos-anam-xlsx', { downloadDir, headless }),
   cancelarDescarga: () => ipcRenderer.invoke('cancelar-descarga'),
   abrirCarpeta: (ruta) => ipcRenderer.invoke('abrir-carpeta', ruta),
-  corregirArchivos: (downloadDir) => ipcRenderer.invoke('corregir-archivos', { downloadDir })
+  corregirArchivos: (downloadDir) => ipcRenderer.invoke('corregir-archivos', { downloadDir }),
+  listarDirectorio: (ruta) => ipcRenderer.invoke('listar-directorio', ruta),
+  leerCsvRows: (ruta) => ipcRenderer.invoke('leer-csv-rows', ruta),
+  leerExcelRows: (ruta) => ipcRenderer.invoke('leer-excel-rows', ruta)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

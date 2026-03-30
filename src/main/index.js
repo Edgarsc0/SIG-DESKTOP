@@ -1,7 +1,8 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join, dirname } from 'path'
 import { spawn } from 'child_process'
-import { mkdirSync, readdirSync } from 'fs'
+import { mkdirSync, readdirSync, readFileSync, existsSync } from 'fs'
+import * as XLSX from 'xlsx'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { autoUpdater } from 'electron-updater'
@@ -77,6 +78,14 @@ app.whenReady().then(() => {
       ? join(__dirname, '../../resources/scripts/', exeName)
       : join(process.resourcesPath, 'scripts/', exeName)
 
+    if (!existsSync(exePath)) {
+      event.sender.send(
+        'descarga-log',
+        `AVISO: corrector no disponible en este sistema (${process.platform}) — se omite la corrección.`
+      )
+      return
+    }
+
     const outputDir = join(downloadDir, 'Corregidos')
     mkdirSync(outputDir, { recursive: true })
 
@@ -94,6 +103,12 @@ app.whenReady().then(() => {
         })
         activeChildren.add(child)
 
+        child.on('error', (err) => {
+          activeChildren.delete(child)
+          event.sender.send('descarga-log', `ERROR al ejecutar corrector: ${err.message}`)
+          resolve() // continuar con el siguiente archivo
+        })
+
         child.stdout.on('data', (data) => event.sender.send('descarga-log', data.toString()))
         child.stderr.on('data', (data) =>
           event.sender.send('descarga-log', `ERROR: ${data.toString()}`)
@@ -106,6 +121,38 @@ app.whenReady().then(() => {
         })
       })
     }
+  })
+
+  ipcMain.handle('listar-directorio', (_, ruta) => {
+    try {
+      return readdirSync(ruta)
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('leer-csv-rows', (_, ruta) => {
+    const content = readFileSync(ruta, { encoding: 'latin1' })
+    const lines = content.split(/\r?\n/).filter((l) => l.trim())
+    if (lines.length < 2) return []
+    const headers = lines[0].split('|').map((h) => h.trim())
+    return lines.slice(1).map((line) => {
+      const values = line.split('|')
+      return Object.fromEntries(headers.map((h, i) => [h, (values[i] ?? '').trim()]))
+    })
+  })
+
+  ipcMain.handle('leer-excel-rows', (_, ruta) => {
+    const wb = XLSX.readFile(ruta)
+    const ws = wb.Sheets[wb.SheetNames[0]]
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false })
+    // data[0] = fila basura del reporte, data[1] = encabezados reales, data[2+] = datos
+    if (data.length < 2) return []
+    const headers = data[1].map((h) => String(h).trim())
+    return data
+      .slice(2)
+      .filter((row) => row.some((v) => v !== ''))
+      .map((row) => Object.fromEntries(headers.map((h, i) => [h, String(row[i] ?? '')])))
   })
 
   ipcMain.handle('cancelar-descarga', () => {

@@ -30,7 +30,8 @@
     "react-awesome-reveal": "^4.3.1",
     "react-router-dom": "^7.13.2",
     "selenium-webdriver": "^4.41.0",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config": "^2.1.0",
