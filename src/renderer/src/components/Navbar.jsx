@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
-import { FileDown, Home, Database, FileScan } from 'lucide-react'
+import { FileDown, Home, Database, FileUp } from 'lucide-react'
 import anamLogo from '../assets/anam_logo.png'
 
 const links = [
   { to: '/', icon: Home, label: 'Inicio' },
-  { to: '/descargas', icon: FileDown, label: 'Descargas' }
+  { to: '/descargas', icon: FileDown, label: 'Descargas' },
+  { to: '/subida', icon: Database, label: 'Carga a BD' },
+  { to: '/carga-domicilios', icon: FileUp, label: 'Carga Directa' }
 ]
 
 function Navbar() {

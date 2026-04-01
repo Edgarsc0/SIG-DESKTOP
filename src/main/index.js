@@ -70,6 +70,14 @@ app.whenReady().then(() => {
     return canceled ? null : filePaths[0]
   })
 
+  ipcMain.handle('seleccionar-archivo-csv', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'CSV', extensions: ['csv'] }]
+    })
+    return canceled ? null : filePaths[0]
+  })
+
   ipcMain.handle('abrir-carpeta', (_, ruta) => shell.openPath(ruta))
 
   ipcMain.handle('corregir-archivos', async (event, { downloadDir }) => {
@@ -132,25 +140,46 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('leer-csv-rows', (_, ruta) => {
-    const content = readFileSync(ruta, { encoding: 'latin1' })
-    const lines = content.split(/\r?\n/).filter((l) => l.trim())
-    if (lines.length < 2) return []
-    const headers = lines[0].split('|').map((h) => h.trim())
-    return lines.slice(1).map((line) => {
-      const values = line.split('|')
-      return Object.fromEntries(headers.map((h, i) => [h, (values[i] ?? '').trim()]))
-    })
+    const encodings = ['latin1', 'utf-8']
+    let contenido = null
+    for (const enc of encodings) {
+      try {
+        contenido = readFileSync(ruta, enc)
+        if (contenido.includes('\n')) break
+      } catch {
+        continue
+      }
+    }
+    if (!contenido) return []
+
+    const lineas = contenido.split(/\r?\n/)
+    if (lineas.length < 2) return []
+
+    const headers = lineas[0].split('|').map((h) => h.trim())
+
+    const rows = []
+    for (let i = 1; i < lineas.length; i++) {
+      const linea = lineas[i]
+      if (!linea.trim()) continue
+      const cols = linea.split('|')
+      const obj = {}
+      headers.forEach((h, j) => {
+        obj[h] = (cols[j] ?? '').trim()
+      })
+      rows.push(obj)
+    }
+    return rows
   })
 
   ipcMain.handle('leer-excel-rows', (_, ruta) => {
     const wb = XLSX.readFile(ruta)
     const ws = wb.Sheets[wb.SheetNames[0]]
     const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false })
-    // data[0] = fila basura del reporte, data[1] = encabezados reales, data[2+] = datos
-    if (data.length < 2) return []
-    const headers = data[1].map((h) => String(h).trim())
+    // data[0] = encabezados reales (fila basura ya eliminada al descargar)
+    if (data.length < 1) return []
+    const headers = data[0].map((h) => String(h).trim())
     return data
-      .slice(2)
+      .slice(1)
       .filter((row) => row.some((v) => v !== ''))
       .map((row) => Object.fromEntries(headers.map((h, i) => [h, String(row[i] ?? '')])))
   })
@@ -250,6 +279,35 @@ app.whenReady().then(() => {
           else reject(new Error(`Proceso terminó con código ${code}`))
         })
       })
+
+      // Eliminar la primera fila (basura del reporte) del xlsx descargado
+      const xlsxFile = readdirSync(downloadDir).find(
+        (f) =>
+          !f.startsWith('~$') &&
+          !f.startsWith('.~lock') &&
+          ['.xlsx', '.xls'].includes(f.slice(f.lastIndexOf('.')).toLowerCase())
+      )
+      if (xlsxFile) {
+        const xlsxPath = join(downloadDir, xlsxFile)
+        const wb = XLSX.readFile(xlsxPath)
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const range = XLSX.utils.decode_range(ws['!ref'])
+        // Subir todas las filas un lugar (elimina la fila 0)
+        for (let R = range.s.r; R < range.e.r; R++) {
+          for (let C = range.s.c; C <= range.e.c; C++) {
+            const next = ws[XLSX.utils.encode_cell({ r: R + 1, c: C })]
+            if (next) {
+              ws[XLSX.utils.encode_cell({ r: R, c: C })] = next
+            } else {
+              delete ws[XLSX.utils.encode_cell({ r: R, c: C })]
+            }
+          }
+        }
+        range.e.r--
+        ws['!ref'] = XLSX.utils.encode_range(range)
+        XLSX.writeFile(wb, xlsxPath)
+        event.sender.send('descarga-log', 'Fila de encabezado de reporte eliminada del xlsx.')
+      }
     }
   )
 

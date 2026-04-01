@@ -37,6 +37,7 @@ function PanelDescargas() {
   const [cancelado, setCancelado] = useState(false)
   const [subiendoBD, setSubiendoBD] = useState(false)
   const [downloadDir, setDownloadDir] = useState(null)
+  const [resultadosBD, setResultadosBD] = useState({}) // { label: { insertadas, eliminados } }
   const logsEndRef = useRef(null)
   const canceladoRef = useRef(false)
 
@@ -84,9 +85,62 @@ function PanelDescargas() {
 
   const handleSubirABD = async (dir) => {
     setSubiendoBD(true)
+    setResultadosBD({})
     agregarLog('Iniciando carga a base de datos...')
 
-    const enviarChunks = async (rows, endpoint, label) => {
+    // ── Helper: TRUNCAR → INSERT chunks → DEDUP ──────────────────────────────
+    const cargarSimple = async (rows, endpoint, truncarTabla, label) => {
+      const total = rows.length
+      const totalChunks = Math.ceil(total / CHUNK_SIZE)
+
+      agregarLog(`  Truncando ${truncarTabla}...`)
+      const tRes = await fetch(`${DRF_BASE_URL}/api/truncar-tabla/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tabla: truncarTabla })
+      })
+      const tData = await tRes.json()
+      if (!tRes.ok || !tData.ok) {
+        agregarLog(`ERROR al truncar ${truncarTabla}: ${tData.error ?? 'Error'}`)
+        return
+      }
+
+      agregarLog(`  ${total} filas — ${totalChunks} lote(s)`)
+      let insertadas = 0
+      for (let i = 0; i < total; i += CHUNK_SIZE) {
+        const chunkNum = Math.floor(i / CHUNK_SIZE) + 1
+        const res = await fetch(`${DRF_BASE_URL}${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: rows.slice(i, i + CHUNK_SIZE) })
+        })
+        const data = await res.json()
+        if (!res.ok || !data.ok) {
+          agregarLog(`ERROR BD ${label} [lote ${chunkNum}]: ${data.error ?? 'Error desconocido'}`)
+          return
+        }
+        insertadas += data.insertadas ?? rows.slice(i, i + CHUNK_SIZE).length
+        agregarLog(`  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`)
+      }
+
+      agregarLog(`  Eliminando duplicados exactos...`)
+      const dRes = await fetch(`${DRF_BASE_URL}/api/deduplicar-tabla/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tabla: truncarTabla })
+      })
+      const dData = await dRes.json()
+      const eliminados = dData.eliminados ?? 0
+
+      agregarLog(`✓ ${label} cargado.`)
+      agregarLog(
+        `  Insertadas: ${insertadas.toLocaleString()} — Duplicados eliminados: ${eliminados.toLocaleString()} — En tabla: ${(insertadas - eliminados).toLocaleString()}`
+      )
+      setResultadosBD((prev) => ({ ...prev, [label]: { insertadas, eliminados } }))
+    }
+
+    // ── Helper: INSERT chunks via SP (sin truncar) ────────────────────────────
+    const cargarSync = async (rows, endpoint, label) => {
       const total = rows.length
       const totalChunks = Math.ceil(total / CHUNK_SIZE)
       agregarLog(`  ${total} filas — ${totalChunks} lote(s)`)
@@ -102,16 +156,14 @@ function PanelDescargas() {
           agregarLog(`ERROR BD ${label} [lote ${chunkNum}]: ${data.error ?? 'Error desconocido'}`)
           return
         }
-        agregarLog(
-          `  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`
-        )
+        agregarLog(`  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`)
       }
       agregarLog(`✓ ${label} cargado.`)
     }
 
     try {
       const corregidosDir = `${dir}/Corregidos`
-      const enCorregidos = await window.api.listarDirectorio(corregidosDir)
+      const enCorregidos = await window.api.listarDirectorio(corregidosDir).catch(() => [])
       const enRaiz = await window.api.listarDirectorio(dir)
 
       // --- POSICIONES ---
@@ -122,9 +174,9 @@ function PanelDescargas() {
         rutaPosiciones = `${dir}/zafiro_info_Posiciones.csv`
 
       if (rutaPosiciones) {
-        agregarLog('Leyendo Posiciones.csv...')
+        agregarLog('Leyendo Posiciones...')
         const rows = await window.api.leerCsvRows(rutaPosiciones)
-        await enviarChunks(rows, '/api/subir-posiciones-chunk/', 'Posiciones')
+        await cargarSimple(rows, '/api/bulk-insert-movpos/', 'MOV_POS', 'Posiciones')
       } else {
         agregarLog('AVISO: Posiciones.csv no encontrado — se omite.')
       }
@@ -137,14 +189,14 @@ function PanelDescargas() {
         rutaFamiliares = `${dir}/zafiro_info_Familiares.csv`
 
       if (rutaFamiliares) {
-        agregarLog('Leyendo Familiares.csv...')
+        agregarLog('Leyendo Familiares...')
         const rows = await window.api.leerCsvRows(rutaFamiliares)
-        await enviarChunks(rows, '/api/subir-familiares-chunk/', 'Familiares')
+        await cargarSimple(rows, '/api/cargar-familiar-csv/', 'FAMILIAR', 'Familiares')
       } else {
         agregarLog('AVISO: Familiares.csv no encontrado — se omite.')
       }
 
-      // --- MOVIMIENTOS ---
+      // --- MOVIMIENTOS (sync SP, sin truncar) ---
       const esExcel = (f) =>
         !f.startsWith('~$') &&
         !f.startsWith('.~lock') &&
@@ -161,9 +213,24 @@ function PanelDescargas() {
       if (rutaMovimientos) {
         agregarLog('Leyendo Movimientos.xlsx...')
         const rows = await window.api.leerExcelRows(rutaMovimientos)
-        await enviarChunks(rows, '/api/subir-movimientos-chunk/', 'Movimientos')
+        await cargarSync(rows, '/api/subir-movimientos-chunk/', 'Movimientos')
       } else {
         agregarLog('AVISO: Movimientos.xlsx no encontrado — se omite.')
+      }
+
+      // --- ESCOLARIDAD / DOMICILIOS ---
+      let rutaDomicilios = null
+      if (enCorregidos.includes('zafiro_info_Escolaridad_Corregido.csv'))
+        rutaDomicilios = `${corregidosDir}/zafiro_info_Escolaridad_Corregido.csv`
+      else if (enRaiz.includes('zafiro_info_Escolaridad.csv'))
+        rutaDomicilios = `${dir}/zafiro_info_Escolaridad.csv`
+
+      if (rutaDomicilios) {
+        agregarLog('Leyendo Escolaridad...')
+        const rows = await window.api.leerCsvRows(rutaDomicilios)
+        await cargarSimple(rows, '/api/cargar-domicilios-csv/', 'domicilios', 'Escolaridad')
+      } else {
+        agregarLog('AVISO: Escolaridad.csv no encontrado — se omite.')
       }
     } catch (err) {
       agregarLog(`ERROR BD: ${err.message}`)
@@ -348,7 +415,7 @@ function PanelDescargas() {
                     className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 ${subirABD ? 'left-4' : 'left-0.5'}`}
                   />
                 </div>
-                <Database size={12} className={subirABD ? 'text-emerald-400' : 'text-stone-500'} />
+                <Database size={12} className={subirABD ? 'text-amber-400' : 'text-stone-500'} />
                 Subir a base de datos
               </button>
             </>
@@ -419,9 +486,41 @@ function PanelDescargas() {
         })}
       </div>
 
+      {/* Resumen BD */}
+      {!subiendoBD && Object.keys(resultadosBD).length > 0 && (
+        <div className="relative mt-6 rounded-xl bg-white/5 border border-white/10 text-xs font-mono overflow-hidden">
+          <p className="px-4 py-2.5 text-slate-400 font-semibold uppercase tracking-wider border-b border-white/10">
+            Resumen BD
+          </p>
+          <div className="divide-y divide-white/5">
+            {Object.entries(resultadosBD).map(([label, { insertadas, eliminados }]) => (
+              <div key={label} className="px-4 py-3 flex items-center justify-between gap-4">
+                <p className="text-white font-semibold shrink-0">{label}</p>
+                <div className="flex gap-6 ml-auto text-right">
+                  <div>
+                    <p className="text-slate-500 text-[10px]">Insertadas</p>
+                    <p className="text-emerald-400">{insertadas.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-[10px]">Duplicados eliminados</p>
+                    <p className="text-amber-400">{eliminados.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-[10px]">En tabla</p>
+                    <p className="text-white">{(insertadas - eliminados).toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Sección de logs */}
       {(descargando || subiendoBD || logs.length > 0) && (
         <div className="relative mt-6">
+          {' '}
+          {/* <-- Quité el resize-y de aquí */}
           <div className="flex items-center gap-2 mb-2">
             <Terminal size={14} className="text-amber-400" />
             <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">
@@ -456,12 +555,11 @@ function PanelDescargas() {
               </span>
             )}
           </div>
-
-          <div className="bg-black/40 border border-white/10 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs">
+          <div className="bg-black/40 border border-white/10 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs resize-y min-h-32 max-h-[80vh]">
             {logs.map((line, i) => (
               <p
                 key={i}
-                className={`leading-relaxed ${
+                className={`whitespace-pre-wrap leading-relaxed ${
                   line.startsWith('ERROR')
                     ? 'text-red-400'
                     : line.startsWith('Proceso cancelado')

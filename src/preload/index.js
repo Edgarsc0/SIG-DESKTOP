@@ -21,7 +21,8 @@ const api = {
   corregirArchivos: (downloadDir) => ipcRenderer.invoke('corregir-archivos', { downloadDir }),
   listarDirectorio: (ruta) => ipcRenderer.invoke('listar-directorio', ruta),
   leerCsvRows: (ruta) => ipcRenderer.invoke('leer-csv-rows', ruta),
-  leerExcelRows: (ruta) => ipcRenderer.invoke('leer-excel-rows', ruta)
+  leerExcelRows: (ruta) => ipcRenderer.invoke('leer-excel-rows', ruta),
+  seleccionarArchivoCsv: () => ipcRenderer.invoke('seleccionar-archivo-csv')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
