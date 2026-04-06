@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Database, FolderOpen, Terminal, Check, FileSpreadsheet, AlertCircle } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
 
-const DRF_BASE_URL = 'http://127.0.0.1:8000'
+const DRF_BASE_URL = 'https://sig-desktop-api.onrender.com'
 const CHUNK_SIZE = 500
 
 const ARCHIVOS_CONFIG = [
@@ -28,7 +28,7 @@ const ARCHIVOS_CONFIG = [
     label: 'Movimientos',
     corregido: null,
     original: null,
-    endpoint: '/api/subir-movimientos-chunk/',
+    endpoint: '/api/insertar-movimientos/',
     truncarTabla: null,
     tipo: 'excel',
     modo: 'sync'
@@ -216,7 +216,29 @@ function PanelSubida() {
 
   // ── Modo sync: INSERT chunks via SP (Movimientos) ─────────────────────────
   const cargarSync = async (rows, endpoint, label) => {
+    const anioActual = new Date().getFullYear() // Hace que sea dinámico en lugar de fijarlo a 2026
+
+    //ELIMINAR REGISTROS DE MOVIMIENTOS ANTES DE INSERTAR LOS NUEVOS DEL AÑO ACTUAL
+    const eliminar_registros_fetch = await fetch(
+      `${DRF_BASE_URL}/api/eliminar-registros-movimientos/`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ año: anioActual })
+      }
+    )
+
+    const eliminar_registros_response = await eliminar_registros_fetch.json()
+    if (!eliminar_registros_response.ok) {
+      agregarLog(
+        `ERROR al eliminar registros: ${eliminar_registros_response.error ?? 'Error desconocido'}`
+      )
+      return false
+    }
+
+    // VOLVER A LLENAR LOS REGISTROS DE MOVIMIENTOS CON LOS NUEVOS DATOS DEL EXCEL
     const total = rows.length
+    let insertadas = 0
     const totalChunks = Math.ceil(total / CHUNK_SIZE)
     agregarLog(`  ${total} filas — ${totalChunks} lote(s)`)
 
@@ -225,19 +247,45 @@ function PanelSubida() {
       const res = await fetch(`${DRF_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: rows.slice(i, i + CHUNK_SIZE) })
+        body: JSON.stringify({ rows: rows.slice(i, i + CHUNK_SIZE), año: anioActual })
       })
       const data = await res.json()
       if (!res.ok || !data.ok) {
         agregarLog(`ERROR BD ${label} [lote ${chunkNum}]: ${data.error ?? 'Error desconocido'}`)
         return false
       }
+      insertadas += data.insertadas ?? rows.slice(i, i + CHUNK_SIZE).length
       agregarLog(
         `  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`
       )
     }
 
     agregarLog(`✓ ${label} cargado.`)
+
+    //ELIMINAR DUPLICADOS EXACTOS DE MOV_TOTAL
+    agregarLog('Eliminando Duplicados de registros de Movimientos...')
+
+    const dRes = await fetch(`${DRF_BASE_URL}/api/deduplicar-tabla/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tabla: 'MOV_TOTAL' })
+    })
+
+    const dData = await dRes.json()
+    if (!dRes.ok || !dData.ok) {
+      agregarLog(`ERROR al deduplicar MOV_TOTAL: ${dData.error ?? 'Error'}`)
+      return false
+    }
+    const eliminados = dData.eliminados ?? 0
+
+    agregarLog(`✓ MOV_TOTAL cargado.`)
+    agregarLog(
+      `  Insertadas: ${insertadas.toLocaleString()} — Duplicados eliminados: ${eliminados.toLocaleString()}`
+    )
+
+    // IMPORTANTE: Esto es lo que hace que aparezca en el recuadro final de "Resumen BD"
+    setResultados((prev) => ({ ...prev, [label]: { insertadas, eliminados } }))
+
     return true
   }
 

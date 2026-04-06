@@ -21,7 +21,7 @@ const archivos = [
   { nombre: 'Movimientos_ANAM_EMPLEADOS.xlsx', id: 'movimientos_anam_empleados' }
 ]
 
-const DRF_BASE_URL = 'http://127.0.0.1:8000'
+const DRF_BASE_URL = 'https://sig-desktop-api.onrender.com'
 const CHUNK_SIZE = 500
 
 function PanelDescargas() {
@@ -120,7 +120,9 @@ function PanelDescargas() {
           return
         }
         insertadas += data.insertadas ?? rows.slice(i, i + CHUNK_SIZE).length
-        agregarLog(`  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`)
+        agregarLog(
+          `  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`
+        )
       }
 
       agregarLog(`  Eliminando duplicados exactos...`)
@@ -130,6 +132,10 @@ function PanelDescargas() {
         body: JSON.stringify({ tabla: truncarTabla })
       })
       const dData = await dRes.json()
+      if (!dRes.ok || !dData.ok) {
+        agregarLog(`ERROR al deduplicar ${truncarTabla}: ${dData.error ?? 'Error'}`)
+        return
+      }
       const eliminados = dData.eliminados ?? 0
 
       agregarLog(`✓ ${label} cargado.`)
@@ -141,24 +147,73 @@ function PanelDescargas() {
 
     // ── Helper: INSERT chunks via SP (sin truncar) ────────────────────────────
     const cargarSync = async (rows, endpoint, label) => {
+      const anioActual = new Date().getFullYear()
+
+      // ELIMINAR REGISTROS DE MOVIMIENTOS ANTES DE INSERTAR LOS NUEVOS DEL AÑO ACTUAL
+      const eliminar_registros_fetch = await fetch(
+        `${DRF_BASE_URL}/api/eliminar-registros-movimientos/`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ año: anioActual })
+        }
+      )
+
+      const eliminar_registros_response = await eliminar_registros_fetch.json()
+      if (!eliminar_registros_response.ok) {
+        agregarLog(
+          `ERROR al eliminar registros: ${eliminar_registros_response.error ?? 'Error desconocido'}`
+        )
+        return false
+      }
+
       const total = rows.length
       const totalChunks = Math.ceil(total / CHUNK_SIZE)
+      let insertadas = 0
+
       agregarLog(`  ${total} filas — ${totalChunks} lote(s)`)
       for (let i = 0; i < total; i += CHUNK_SIZE) {
         const chunkNum = Math.floor(i / CHUNK_SIZE) + 1
         const res = await fetch(`${DRF_BASE_URL}${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: rows.slice(i, i + CHUNK_SIZE) })
+          body: JSON.stringify({ rows: rows.slice(i, i + CHUNK_SIZE), año: anioActual })
         })
         const data = await res.json()
         if (!res.ok || !data.ok) {
           agregarLog(`ERROR BD ${label} [lote ${chunkNum}]: ${data.error ?? 'Error desconocido'}`)
-          return
+          return false
         }
-        agregarLog(`  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`)
+        insertadas += data.insertadas ?? rows.slice(i, i + CHUNK_SIZE).length
+        agregarLog(
+          `  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`
+        )
       }
       agregarLog(`✓ ${label} cargado.`)
+
+      // ELIMINAR DUPLICADOS EXACTOS DE MOV_TOTAL
+      agregarLog('Eliminando Duplicados de registros de Movimientos...')
+
+      const dRes = await fetch(`${DRF_BASE_URL}/api/deduplicar-tabla/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tabla: 'MOV_TOTAL' })
+      })
+
+      const dData = await dRes.json()
+      if (!dRes.ok || !dData.ok) {
+        agregarLog(`ERROR al deduplicar MOV_TOTAL: ${dData.error ?? 'Error'}`)
+        return false
+      }
+      const eliminados = dData.eliminados ?? 0
+
+      agregarLog(`✓ MOV_TOTAL cargado.`)
+      agregarLog(
+        `  Insertadas: ${insertadas.toLocaleString()} — Duplicados eliminados: ${eliminados.toLocaleString()}`
+      )
+
+      setResultadosBD((prev) => ({ ...prev, [label]: { insertadas, eliminados } }))
+      return true
     }
 
     try {
@@ -213,7 +268,7 @@ function PanelDescargas() {
       if (rutaMovimientos) {
         agregarLog('Leyendo Movimientos.xlsx...')
         const rows = await window.api.leerExcelRows(rutaMovimientos)
-        await cargarSync(rows, '/api/subir-movimientos-chunk/', 'Movimientos')
+        await cargarSync(rows, '/api/insertar-movimientos/', 'Movimientos')
       } else {
         agregarLog('AVISO: Movimientos.xlsx no encontrado — se omite.')
       }
