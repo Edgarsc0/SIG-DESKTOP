@@ -25,12 +25,11 @@ const DRF_BASE_URL = 'https://sig-desktop-api.onrender.com'
 const CHUNK_SIZE = 500
 
 function PanelDescargas() {
-  const isDev = window.api.isDev
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [carpeta, setCarpeta] = useState(() => localStorage.getItem('carpeta_descarga') ?? null)
   const [headless, setHeadless] = useState(true)
   const [detectarErrores, setDetectarErrores] = useState(true)
-  const [subirABD, setSubirABD] = useState(isDev)
+  const [subirABD, setSubirABD] = useState(true)
   const [logs, setLogs] = useState([])
   const [descargando, setDescargando] = useState(false)
   const [completado, setCompletado] = useState(false)
@@ -453,28 +452,26 @@ function PanelDescargas() {
             Detectar y corregir errores en los archivos csv
           </button>
 
-          {isDev && (
-            <>
-              <div className="w-px h-4 bg-white/10" />
+          <>
+            <div className="w-px h-4 bg-white/10" />
 
-              {/* Toggle: subir a BD — solo en desarrollo */}
-              <button
-                onClick={() => setSubirABD((v) => !v)}
-                className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
-                title="Cargar archivos a la base de datos al finalizar"
+            {/* Toggle: subir a BD */}
+            <button
+              onClick={() => setSubirABD((v) => !v)}
+              className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
+              title="Cargar archivos a la base de datos al finalizar"
+            >
+              <div
+                className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${subirABD ? 'bg-emerald-600' : 'bg-stone-600'}`}
               >
                 <div
-                  className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${subirABD ? 'bg-emerald-600' : 'bg-stone-600'}`}
-                >
-                  <div
-                    className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 ${subirABD ? 'left-4' : 'left-0.5'}`}
-                  />
-                </div>
-                <Database size={12} className={subirABD ? 'text-amber-400' : 'text-stone-500'} />
-                Subir a base de datos
-              </button>
-            </>
-          )}
+                  className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 ${subirABD ? 'left-4' : 'left-0.5'}`}
+                />
+              </div>
+              <Database size={12} className={subirABD ? 'text-amber-400' : 'text-stone-500'} />
+              Subir a base de datos
+            </button>
+          </>
 
           {/* Seleccionar todos */}
           <button
