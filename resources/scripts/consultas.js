@@ -5,8 +5,8 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 
-console.log(process.argv)
-
+const ZAFIRO_USER = process.env.ZAFIRO_USER || 'RAAO81BA'
+const ZAFIRO_PASS = process.env.ZAFIRO_PASS || 'M4rzo.2026'
 const DOWNLOAD_DIR = process.argv[2] || path.join(os.homedir(), 'Downloads', 'ZafiroDescargas')
 const HEADLESS = process.argv[3] !== '0'
 const CONSULTA_NAME = 'ANAM_EMPLEADOS_OMAR_ANI'
@@ -99,9 +99,9 @@ const main = async () => {
     await driver.get('https://peanam.mat.sat.gob.mx/psp/anamhum/EMPLOYEE/HRMS/')
 
     await driver.wait(until.elementLocated(By.id('userid')), 10000)
-    await driver.findElement(By.id('userid')).sendKeys('RAAO81BA')
+    await driver.findElement(By.id('userid')).sendKeys(ZAFIRO_USER)
     await driver.wait(until.elementLocated(By.id('pwd')), 10000)
-    await driver.findElement(By.id('pwd')).sendKeys('M4rzo.2026')
+    await driver.findElement(By.id('pwd')).sendKeys(ZAFIRO_PASS)
     await driver.sleep(2000)
     await driver.executeScript(
       "document.querySelector('body > table > tbody > tr:nth-child(2) > td > table > tbody > tr:nth-child(2) > td > table > tbody > tr > td > table > tbody > tr > td > table:nth-child(3) > tbody > tr:nth-child(4) > td:nth-child(3) > input').click();"

@@ -1,21 +1,18 @@
-import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
-import { FileDown, Home, Database, FileUp } from 'lucide-react'
+import { FileDown, Home, Database, FileUp, ClockArrowUp } from 'lucide-react'
 import anamLogo from '../assets/anam_logo.png'
+import { useVersion } from '../context/VersionContext'
 
 const links = [
   { to: '/', icon: Home, label: 'Inicio' },
   { to: '/descargas', icon: FileDown, label: 'Descargas' },
   { to: '/subida', icon: Database, label: 'Carga a BD' },
-  { to: '/carga-domicilios', icon: FileUp, label: 'Carga Directa' }
+  { to: '/carga-domicilios', icon: FileUp, label: 'Carga Directa' },
+  { to: '/historial-pos', icon: ClockArrowUp, label: 'Historial Pos' }
 ]
 
 function Navbar() {
-  const [version, setVersion] = useState('')
-
-  useEffect(() => {
-    window.api.getVersion().then(setVersion)
-  }, [])
+  const { version } = useVersion()
 
   return (
     <aside className="w-16 hover:w-64 transition-all duration-300 ease-in-out group flex flex-col bg-stone-950 border-r border-white/5 h-screen shrink-0">

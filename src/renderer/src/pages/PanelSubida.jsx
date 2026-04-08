@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
-import { Database, FolderOpen, Terminal, Check, FileSpreadsheet, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Database, FolderOpen, Terminal, Check, FileSpreadsheet, AlertCircle, ClockArrowUp } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
-
-const DRF_BASE_URL = 'https://sig-desktop-api.onrender.com'
-const CHUNK_SIZE = 500
+import { cargarSimple, cargarSync } from '../lib/api'
+import { useLogs } from '../hooks/useLogs'
 
 const ARCHIVOS_CONFIG = [
   {
@@ -53,31 +52,89 @@ function PanelSubida() {
   const [archivosDetectados, setArchivosDetectados] = useState(null)
   const [archivosExtra, setArchivosExtra] = useState([])
   const [seleccionados, setSeleccionados] = useState(new Set())
-  const [logs, setLogs] = useState([])
   const [subiendo, setSubiendo] = useState(false)
   const [completado, setCompletado] = useState(false)
-  const [resultados, setResultados] = useState({}) // { label: { insertadas, eliminados } }
-  const logsEndRef = useRef(null)
+  const [resultados, setResultados] = useState({})
+  const [cargarHistorial, setCargarHistorial] = useState(false)
+
+  const { logs, agregarLog, logsEndRef, containerRef } = useLogs()
+
+  const escanearCarpeta = useCallback(
+    async (dir) => {
+      try {
+        const corregidosDir = `${dir}/Corregidos`
+        const enCorregidos = await window.api.listarDirectorio(corregidosDir).catch(() => [])
+        const enRaiz = await window.api.listarDirectorio(dir)
+
+        const esExcel = (f) =>
+          !f.startsWith('~$') &&
+          !f.startsWith('.~lock') &&
+          ['.xlsx', '.xls'].includes(f.slice(f.lastIndexOf('.')).toLowerCase())
+
+        const excelCorregido = enCorregidos.find(esExcel)
+        const excelRaiz = enRaiz.find(esExcel)
+
+        const detectados = ARCHIVOS_CONFIG.map((cfg) => {
+          if (cfg.tipo === 'excel') {
+            const archivo = excelCorregido ?? excelRaiz ?? null
+            return {
+              ...cfg,
+              encontrado: !!archivo,
+              esCorregido: !!excelCorregido,
+              ruta: excelCorregido
+                ? `${corregidosDir}/${excelCorregido}`
+                : excelRaiz
+                  ? `${dir}/${excelRaiz}`
+                  : null
+            }
+          }
+          if (cfg.corregido && enCorregidos.includes(cfg.corregido)) {
+            return {
+              ...cfg,
+              encontrado: true,
+              esCorregido: true,
+              ruta: `${corregidosDir}/${cfg.corregido}`
+            }
+          }
+          if (enRaiz.includes(cfg.original)) {
+            return { ...cfg, encontrado: true, esCorregido: false, ruta: `${dir}/${cfg.original}` }
+          }
+          return { ...cfg, encontrado: false, esCorregido: false, ruta: null }
+        })
+
+        const esCsv = (f) => f.toLowerCase().endsWith('.csv')
+        const extraFinal = [
+          ...enCorregidos
+            .filter((f) => !ARCHIVOS_CUBIERTOS.has(f) && esCsv(f))
+            .map((f) => ({ nombre: f, esCorregido: true })),
+          ...enRaiz
+            .filter((f) => !ARCHIVOS_CUBIERTOS.has(f) && (esCsv(f) || esExcel(f)))
+            .map((f) => ({ nombre: f, esCorregido: false }))
+        ]
+
+        setArchivosDetectados(detectados)
+        setArchivosExtra(extraFinal)
+        setSeleccionados(new Set(detectados.filter((a) => a.encontrado).map((a) => a.label)))
+      } catch (err) {
+        agregarLog(`ERROR al escanear carpeta: ${err.message}`)
+      }
+    },
+    [agregarLog]
+  )
 
   useEffect(() => {
     if (carpeta) escanearCarpeta(carpeta)
-  }, [])
+  }, [carpeta, escanearCarpeta])
 
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [logs])
-
-  const agregarLog = (msg) => setLogs((prev) => [...prev, msg])
-
-  const toggleSeleccion = (label) => {
+  const toggleSeleccion = useCallback((label) => {
     setSeleccionados((prev) => {
       const next = new Set(prev)
       next.has(label) ? next.delete(label) : next.add(label)
       return next
     })
-  }
+  }, [])
 
-  const elegirCarpeta = async () => {
+  const elegirCarpeta = useCallback(async () => {
     const ruta = await window.api.seleccionarCarpeta()
     if (ruta) {
       setCarpeta(ruta)
@@ -86,212 +143,12 @@ function PanelSubida() {
       setArchivosExtra([])
       setSeleccionados(new Set())
       setCompletado(false)
-      setLogs([])
       await escanearCarpeta(ruta)
     }
-  }
+  }, [escanearCarpeta])
 
-  const escanearCarpeta = async (dir) => {
-    try {
-      const corregidosDir = `${dir}/Corregidos`
-      const enCorregidos = await window.api.listarDirectorio(corregidosDir).catch(() => [])
-      const enRaiz = await window.api.listarDirectorio(dir)
-
-      const esExcel = (f) =>
-        !f.startsWith('~$') &&
-        !f.startsWith('.~lock') &&
-        ['.xlsx', '.xls'].includes(f.slice(f.lastIndexOf('.')).toLowerCase())
-
-      const excelCorregido = enCorregidos.find(esExcel)
-      const excelRaiz = enRaiz.find(esExcel)
-
-      const detectados = ARCHIVOS_CONFIG.map((cfg) => {
-        if (cfg.tipo === 'excel') {
-          const archivo = excelCorregido ?? excelRaiz ?? null
-          return {
-            ...cfg,
-            encontrado: !!archivo,
-            esCorregido: !!excelCorregido,
-            ruta: excelCorregido
-              ? `${corregidosDir}/${excelCorregido}`
-              : excelRaiz
-                ? `${dir}/${excelRaiz}`
-                : null
-          }
-        }
-        if (cfg.corregido && enCorregidos.includes(cfg.corregido)) {
-          return {
-            ...cfg,
-            encontrado: true,
-            esCorregido: true,
-            ruta: `${corregidosDir}/${cfg.corregido}`
-          }
-        }
-        if (enRaiz.includes(cfg.original)) {
-          return { ...cfg, encontrado: true, esCorregido: false, ruta: `${dir}/${cfg.original}` }
-        }
-        return { ...cfg, encontrado: false, esCorregido: false, ruta: null }
-      })
-
-      const esCsv = (f) => f.toLowerCase().endsWith('.csv')
-      const extraFinal = [
-        ...enCorregidos
-          .filter((f) => !ARCHIVOS_CUBIERTOS.has(f) && esCsv(f))
-          .map((f) => ({ nombre: f, esCorregido: true })),
-        ...enRaiz
-          .filter((f) => !ARCHIVOS_CUBIERTOS.has(f) && (esCsv(f) || esExcel(f)))
-          .map((f) => ({ nombre: f, esCorregido: false }))
-      ]
-
-      setArchivosDetectados(detectados)
-      setArchivosExtra(extraFinal)
-      setSeleccionados(new Set(detectados.filter((a) => a.encontrado).map((a) => a.label)))
-    } catch (err) {
-      agregarLog(`ERROR al escanear carpeta: ${err.message}`)
-    }
-  }
-
-  // ── Modo simple: TRUNCAR → INSERT chunks → DEDUP ──────────────────────────
-  const cargarSimple = async (rows, cfg) => {
-    const { label, endpoint, truncarTabla } = cfg
-    const total = rows.length
-    const totalChunks = Math.ceil(total / CHUNK_SIZE)
-
-    // 1. Truncar
-    agregarLog(`  Truncando ${truncarTabla}...`)
-    const tRes = await fetch(`${DRF_BASE_URL}/api/truncar-tabla/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tabla: truncarTabla })
-    })
-    const tData = await tRes.json()
-    if (!tRes.ok || !tData.ok) {
-      agregarLog(`ERROR al truncar ${truncarTabla}: ${tData.error ?? 'Error'}`)
-      return false
-    }
-
-    // 2. Insert en chunks
-    agregarLog(`  ${total} filas — ${totalChunks} lote(s)`)
-    let insertadas = 0
-    for (let i = 0; i < total; i += CHUNK_SIZE) {
-      const chunkNum = Math.floor(i / CHUNK_SIZE) + 1
-      const res = await fetch(`${DRF_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: rows.slice(i, i + CHUNK_SIZE) })
-      })
-      const data = await res.json()
-      if (!res.ok || !data.ok) {
-        agregarLog(`ERROR BD ${label} [lote ${chunkNum}]: ${data.error ?? 'Error desconocido'}`)
-        return false
-      }
-      insertadas += data.insertadas ?? rows.slice(i, i + CHUNK_SIZE).length
-      agregarLog(
-        `  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`
-      )
-    }
-
-    // 3. Dedup
-    agregarLog(`  Eliminando duplicados exactos...`)
-    const dRes = await fetch(`${DRF_BASE_URL}/api/deduplicar-tabla/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tabla: truncarTabla })
-    })
-    const dData = await dRes.json()
-    if (!dRes.ok || !dData.ok) {
-      agregarLog(`ERROR al deduplicar ${truncarTabla}: ${dData.error ?? 'Error'}`)
-      return false
-    }
-    const eliminados = dData.eliminados ?? 0
-
-    agregarLog(`✓ ${label} cargado.`)
-    agregarLog(
-      `  Insertadas: ${insertadas.toLocaleString()} — Duplicados eliminados: ${eliminados.toLocaleString()} — En tabla: ${(insertadas - eliminados).toLocaleString()}`
-    )
-
-    setResultados((prev) => ({ ...prev, [label]: { insertadas, eliminados } }))
-    return true
-  }
-
-  // ── Modo sync: INSERT chunks via SP (Movimientos) ─────────────────────────
-  const cargarSync = async (rows, endpoint, label) => {
-    const anioActual = new Date().getFullYear() // Hace que sea dinámico en lugar de fijarlo a 2026
-
-    //ELIMINAR REGISTROS DE MOVIMIENTOS ANTES DE INSERTAR LOS NUEVOS DEL AÑO ACTUAL
-    const eliminar_registros_fetch = await fetch(
-      `${DRF_BASE_URL}/api/eliminar-registros-movimientos/`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ año: anioActual })
-      }
-    )
-
-    const eliminar_registros_response = await eliminar_registros_fetch.json()
-    if (!eliminar_registros_response.ok) {
-      agregarLog(
-        `ERROR al eliminar registros: ${eliminar_registros_response.error ?? 'Error desconocido'}`
-      )
-      return false
-    }
-
-    // VOLVER A LLENAR LOS REGISTROS DE MOVIMIENTOS CON LOS NUEVOS DATOS DEL EXCEL
-    const total = rows.length
-    let insertadas = 0
-    const totalChunks = Math.ceil(total / CHUNK_SIZE)
-    agregarLog(`  ${total} filas — ${totalChunks} lote(s)`)
-
-    for (let i = 0; i < total; i += CHUNK_SIZE) {
-      const chunkNum = Math.floor(i / CHUNK_SIZE) + 1
-      const res = await fetch(`${DRF_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: rows.slice(i, i + CHUNK_SIZE), año: anioActual })
-      })
-      const data = await res.json()
-      if (!res.ok || !data.ok) {
-        agregarLog(`ERROR BD ${label} [lote ${chunkNum}]: ${data.error ?? 'Error desconocido'}`)
-        return false
-      }
-      insertadas += data.insertadas ?? rows.slice(i, i + CHUNK_SIZE).length
-      agregarLog(
-        `  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`
-      )
-    }
-
-    agregarLog(`✓ ${label} cargado.`)
-
-    //ELIMINAR DUPLICADOS EXACTOS DE MOV_TOTAL
-    agregarLog('Eliminando Duplicados de registros de Movimientos...')
-
-    const dRes = await fetch(`${DRF_BASE_URL}/api/deduplicar-tabla/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tabla: 'MOV_TOTAL' })
-    })
-
-    const dData = await dRes.json()
-    if (!dRes.ok || !dData.ok) {
-      agregarLog(`ERROR al deduplicar MOV_TOTAL: ${dData.error ?? 'Error'}`)
-      return false
-    }
-    const eliminados = dData.eliminados ?? 0
-
-    agregarLog(`✓ MOV_TOTAL cargado.`)
-    agregarLog(
-      `  Insertadas: ${insertadas.toLocaleString()} — Duplicados eliminados: ${eliminados.toLocaleString()}`
-    )
-
-    // IMPORTANTE: Esto es lo que hace que aparezca en el recuadro final de "Resumen BD"
-    setResultados((prev) => ({ ...prev, [label]: { insertadas, eliminados } }))
-
-    return true
-  }
-
-  const handleSubir = async () => {
+  const handleSubir = useCallback(async () => {
     if (!archivosDetectados) return
-    setLogs([])
     setSubiendo(true)
     setCompletado(false)
     setResultados({})
@@ -310,22 +167,37 @@ function PanelSubida() {
             ? await window.api.leerExcelRows(archivo.ruta)
             : await window.api.leerCsvRows(archivo.ruta)
 
+        let result
         if (archivo.modo === 'simple') {
-          await cargarSimple(rows, archivo)
+          result = await cargarSimple(
+            rows,
+            archivo.endpoint,
+            archivo.truncarTabla,
+            archivo.label,
+            agregarLog
+          )
         } else {
-          await cargarSync(rows, archivo.endpoint, archivo.label)
+          result = await cargarSync(rows, archivo.endpoint, archivo.label, agregarLog)
         }
+        setResultados((prev) => ({ ...prev, [archivo.label]: result }))
       }
       setCompletado(true)
       agregarLog('Proceso terminado.')
+
+      if (cargarHistorial) {
+        agregarLog('Iniciando carga de Historial de Posiciones...')
+        await window.api.iniciarHistorialPos(carpeta, true)
+        agregarLog('Historial de Posiciones completado.')
+      }
     } catch (err) {
       agregarLog(`ERROR: ${err.message}`)
     } finally {
       setSubiendo(false)
     }
-  }
+  }, [archivosDetectados, seleccionados, carpeta, cargarHistorial, agregarLog])
 
   const haySeleccion = archivosDetectados?.some((a) => a.encontrado && seleccionados.has(a.label))
+  const posicionesDetectadas = archivosDetectados?.find((a) => a.label === 'Posiciones')?.encontrado
 
   return (
     <div className="min-h-screen bg-linear-to-br from-stone-950 via-neutral-900 to-stone-950 p-8 flex flex-col">
@@ -369,6 +241,28 @@ function PanelSubida() {
           <span className="truncate">{carpeta ?? 'Elegir carpeta con archivos...'}</span>
         </button>
       </div>
+
+      {/* Toggle historial de posiciones */}
+      {posicionesDetectadas && (
+        <div className="relative mb-4 px-4 py-3 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3">
+          <button
+            onClick={() => setCargarHistorial((v) => !v)}
+            disabled={subiendo}
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors disabled:opacity-40"
+            title="Al finalizar la carga, ejecutar Historial de Posiciones"
+          >
+            <div
+              className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${cargarHistorial ? 'bg-violet-600' : 'bg-stone-600'}`}
+            >
+              <div
+                className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 ${cargarHistorial ? 'left-4' : 'left-0.5'}`}
+              />
+            </div>
+            <ClockArrowUp size={12} className={cargarHistorial ? 'text-violet-400' : 'text-stone-500'} />
+            Cargar historial de posiciones al finalizar
+          </button>
+        </div>
+      )}
 
       {/* Archivos detectados */}
       {archivosDetectados && (
@@ -515,12 +409,15 @@ function PanelSubida() {
               </span>
             )}
           </div>
-          <div className="bg-black/40 border border-white/10 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs resize-y min-h-32 max-h-[80vh]">
+          <div
+            ref={containerRef}
+            className="bg-black/40 border border-white/10 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs resize-y min-h-32 max-h-[80vh]"
+          >
             {logs.map((line, i) => (
               <p
                 key={i}
                 className={`whitespace-pre-wrap leading-relaxed ${
-                  line.startsWith('ERROR')
+                  line.startsWith('ERROR') || line.startsWith('FALLO')
                     ? 'text-red-400'
                     : line.startsWith('✓')
                       ? 'text-emerald-400'

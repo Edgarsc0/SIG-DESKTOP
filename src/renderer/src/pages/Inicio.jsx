@@ -1,14 +1,10 @@
-import { useState, useEffect } from 'react'
 import { FileDown } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useVersion } from '../context/VersionContext'
 
 function Inicio() {
   const navigate = useNavigate()
-  const [version, setVersion] = useState('')
-
-  useEffect(() => {
-    window.api.getVersion().then(setVersion)
-  }, [])
+  const { version } = useVersion()
 
   return (
     <div className="min-h-screen bg-linear-to-br from-stone-950 via-neutral-900 to-stone-950 flex items-center justify-center py-8">

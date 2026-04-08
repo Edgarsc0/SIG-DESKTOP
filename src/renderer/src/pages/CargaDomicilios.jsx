@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import { FileUp, Upload, X, CheckCircle, AlertCircle, FileSpreadsheet, Trash2 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
-
-const DRF_BASE_URL = 'http://127.0.0.1:8000'
-const CHUNK_SIZE = 500
+import { API_CONFIG } from '../lib/api'
+import { useLogs } from '../hooks/useLogs'
 
 const TABLAS = [
   {
@@ -15,33 +14,28 @@ const TABLAS = [
   { id: 'familiar', label: 'Familiar', endpoint: '/api/cargar-familiar-csv/', tabla: 'FAMILIAR' }
 ]
 
+const CHUNK_SIZE = API_CONFIG.chunkSize
+const PARALLEL = API_CONFIG.parallelRequests
+
 function CargaDomicilios() {
   const [tablaId, setTablaId] = useState('domicilios')
   const [rutaArchivo, setRutaArchivo] = useState(null)
   const [nombreArchivo, setNombreArchivo] = useState(null)
   const [filas, setFilas] = useState([])
   const [cargando, setCargando] = useState(false)
-  const [logs, setLogs] = useState([])
   const [resumen, setResumen] = useState(null)
-  const logsEndRef = useRef(null)
+
+  const { logs, agregarLog } = useLogs()
 
   const tabla = TABLAS.find((t) => t.id === tablaId)
 
-  const cambiarTabla = (id) => {
+  const cambiarTabla = useCallback((id) => {
     setTablaId(id)
     setRutaArchivo(null)
     setNombreArchivo(null)
     setFilas([])
-    setLogs([])
     setResumen(null)
-  }
-
-  const agregarLog = (msg) =>
-    setLogs((prev) => {
-      const next = [...prev, msg]
-      setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
-      return next
-    })
+  }, [])
 
   const elegirArchivo = async () => {
     const ruta = await window.api.seleccionarArchivoCsv()
@@ -51,7 +45,6 @@ function CargaDomicilios() {
     setRutaArchivo(ruta)
     setNombreArchivo(nombre)
     setFilas(rows)
-    setLogs([])
     setResumen(null)
   }
 
@@ -59,18 +52,17 @@ function CargaDomicilios() {
     setRutaArchivo(null)
     setNombreArchivo(null)
     setFilas([])
-    setLogs([])
     setResumen(null)
   }
 
-  const handleTruncar = async () => {
+  const handleTruncar = useCallback(async () => {
     const confirmado = window.confirm(
       `¿Seguro que deseas truncar la tabla "${tabla.tabla}"?\nEsta acción eliminará todos los registros y no se puede deshacer.`
     )
     if (!confirmado) return
 
     try {
-      const res = await fetch(`${DRF_BASE_URL}/api/truncar-tabla/`, {
+      const res = await fetch(`${API_CONFIG.baseUrl}/api/truncar-tabla/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tabla: tabla.tabla })
@@ -79,18 +71,20 @@ function CargaDomicilios() {
       if (!res.ok || !data.ok) {
         alert(`Error al truncar: ${data.error ?? 'Error desconocido'}`)
       } else {
-        limpiar()
-        setLogs([`Tabla "${tabla.tabla}" truncada correctamente.`])
+        setRutaArchivo(null)
+        setNombreArchivo(null)
+        setFilas([])
+        setResumen(null)
+        agregarLog(`Tabla "${tabla.tabla}" truncada correctamente.`)
       }
     } catch (err) {
       alert(`Error de red: ${err.message}`)
     }
-  }
+  }, [tabla, agregarLog])
 
-  const handleCargar = async () => {
+  const handleCargar = useCallback(async () => {
     if (!filas.length) return
     setCargando(true)
-    setLogs([])
     setResumen(null)
 
     const total = filas.length
@@ -98,39 +92,50 @@ function CargaDomicilios() {
     let insertadas = 0
     let errores = 0
 
-    agregarLog(`Iniciando carga: ${total} filas en ${totalChunks} lote(s)`)
+    agregarLog(`Iniciando carga: ${total} filas en ${totalChunks} lote(s) — paralelo x${PARALLEL}`)
 
+    const batches = []
     for (let i = 0; i < total; i += CHUNK_SIZE) {
-      const chunkNum = Math.floor(i / CHUNK_SIZE) + 1
-      const chunk = filas.slice(i, i + CHUNK_SIZE)
+      batches.push({ index: i, chunk: filas.slice(i, i + CHUNK_SIZE) })
+    }
 
-      try {
-        const res = await fetch(`${DRF_BASE_URL}${tabla.endpoint}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: chunk })
-        })
-        const data = await res.json()
+    for (let i = 0; i < batches.length; i += PARALLEL) {
+      const group = batches.slice(i, i + PARALLEL)
+      const batchStart = i / PARALLEL + 1
 
-        if (!res.ok || !data.ok) {
-          agregarLog(`ERROR lote ${chunkNum}/${totalChunks}: ${data.error ?? 'Error desconocido'}`)
-          errores += chunk.length
+      const results = await Promise.allSettled(
+        group.map(({ chunk }) =>
+          fetch(`${API_CONFIG.baseUrl}${tabla.endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows: chunk })
+          }).then((res) => res.json())
+        )
+      )
+
+      for (let j = 0; j < results.length; j++) {
+        const result = results[j]
+        const chunkStart = group[j].index + 1
+        const chunkEnd = Math.min(group[j].index + CHUNK_SIZE, total)
+        const batchNum = batchStart + j
+
+        if (result.status === 'rejected') {
+          agregarLog(`ERROR lote ${batchNum}/${totalChunks}: ${result.reason}`)
+          errores += group[j].chunk.length
+        } else if (!result.value.ok) {
+          agregarLog(`ERROR lote ${batchNum}/${totalChunks}: ${result.value.error ?? 'Error'}`)
+          errores += group[j].chunk.length
         } else {
-          insertadas += data.insertadas
-          agregarLog(
-            `  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`
-          )
+          insertadas += result.value.insertadas ?? group[j].chunk.length
+          agregarLog(`  Lote ${batchNum}/${totalChunks}: filas ${chunkStart}–${chunkEnd} OK`)
         }
-      } catch (err) {
-        agregarLog(`ERROR lote ${chunkNum}/${totalChunks}: ${err.message}`)
-        errores += chunk.length
       }
     }
 
     agregarLog('Carga finalizada.')
     setResumen({ total, insertadas, errores })
     setCargando(false)
-  }
+  }, [filas, tabla, agregarLog])
 
   return (
     <div className="min-h-screen bg-linear-to-br from-stone-950 via-neutral-900 to-stone-950 p-8 flex flex-col">

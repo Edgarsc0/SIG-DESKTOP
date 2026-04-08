@@ -22,7 +22,9 @@ const api = {
   listarDirectorio: (ruta) => ipcRenderer.invoke('listar-directorio', ruta),
   leerCsvRows: (ruta) => ipcRenderer.invoke('leer-csv-rows', ruta),
   leerExcelRows: (ruta) => ipcRenderer.invoke('leer-excel-rows', ruta),
-  seleccionarArchivoCsv: () => ipcRenderer.invoke('seleccionar-archivo-csv')
+  seleccionarArchivoCsv: () => ipcRenderer.invoke('seleccionar-archivo-csv'),
+  iniciarHistorialPos: (downloadDir, headless) =>
+    ipcRenderer.invoke('iniciar-historial-pos', { downloadDir, headless })
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

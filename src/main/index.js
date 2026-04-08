@@ -2,12 +2,15 @@ import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join, dirname } from 'path'
 import { spawn } from 'child_process'
 import { mkdirSync, readdirSync, readFileSync, existsSync } from 'fs'
+import { readdir } from 'fs/promises'
 import * as XLSX from 'xlsx'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { autoUpdater } from 'electron-updater'
 
 const activeChildren = new Set()
+const fileCache = new Map()
+const MAX_CACHE_ENTRIES = 100
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -31,9 +34,9 @@ function createWindow() {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           "default-src 'self'; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-          "style-src 'self' 'unsafe-inline'; " +
-          "connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 https://sig-desktop-api.onrender.com;"
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+            "style-src 'self' 'unsafe-inline'; " +
+            "connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:8080 http://localhost:8080 https://sig-desktop-api.onrender.com;"
         ]
       }
     })
@@ -131,15 +134,17 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('listar-directorio', (_, ruta) => {
+  ipcMain.handle('listar-directorio', async (_, ruta) => {
     try {
-      return readdirSync(ruta)
+      return await readdir(ruta)
     } catch {
       return []
     }
   })
 
   ipcMain.handle('leer-csv-rows', (_, ruta) => {
+    if (fileCache.has(ruta)) return fileCache.get(ruta)
+
     const encodings = ['latin1', 'utf-8']
     let contenido = null
     for (const enc of encodings) {
@@ -168,25 +173,68 @@ app.whenReady().then(() => {
       })
       rows.push(obj)
     }
+
+    if (fileCache.size >= MAX_CACHE_ENTRIES) {
+      const firstKey = fileCache.keys().next().value
+      fileCache.delete(firstKey)
+    }
+    fileCache.set(ruta, rows)
     return rows
   })
 
   ipcMain.handle('leer-excel-rows', (_, ruta) => {
+    if (fileCache.has(ruta)) return fileCache.get(ruta)
+
     const wb = XLSX.readFile(ruta)
     const ws = wb.Sheets[wb.SheetNames[0]]
     const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false })
-    // data[0] = encabezados reales (fila basura ya eliminada al descargar)
     if (data.length < 1) return []
     const headers = data[0].map((h) => String(h).trim())
-    return data
+    const rows = data
       .slice(1)
       .filter((row) => row.some((v) => v !== ''))
       .map((row) => Object.fromEntries(headers.map((h, i) => [h, String(row[i] ?? '')])))
+
+    if (fileCache.size >= MAX_CACHE_ENTRIES) {
+      const firstKey = fileCache.keys().next().value
+      fileCache.delete(firstKey)
+    }
+    fileCache.set(ruta, rows)
+    return rows
   })
 
   ipcMain.handle('cancelar-descarga', () => {
     for (const child of activeChildren) child.kill()
     activeChildren.clear()
+  })
+
+  ipcMain.handle('iniciar-historial-pos', async (event, { downloadDir, headless }) => {
+    const scriptPath = is.dev
+      ? join(__dirname, '../../resources/scripts/cargarHistorialPos.js')
+      : join(process.resourcesPath, 'scripts/cargarHistorialPos.js')
+
+    const sep = process.platform === 'win32' ? ';' : ':'
+    const nodeModulesPath = is.dev
+      ? join(__dirname, '../../node_modules')
+      : `${join(process.resourcesPath, 'app.asar.unpacked/node_modules')}${sep}${join(process.resourcesPath, 'app.asar/node_modules')}`
+
+    await new Promise((resolve) => {
+      const child = spawn(process.execPath, [scriptPath, downloadDir, headless ? '1' : '0'], {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
+      })
+      activeChildren.add(child)
+
+      child.stdout.on('data', (data) => event.sender.send('descarga-log', data.toString()))
+      child.stderr.on('data', (data) =>
+        event.sender.send('descarga-log', `ERROR: ${data.toString()}`)
+      )
+
+      child.on('close', (code) => {
+        activeChildren.delete(child)
+        // código 1 = hubo fallos parciales pero el script terminó — no rechazar
+        resolve(code)
+      })
+    })
   })
 
   ipcMain.handle('crear-carpeta-descarga', (_, carpeta) => {

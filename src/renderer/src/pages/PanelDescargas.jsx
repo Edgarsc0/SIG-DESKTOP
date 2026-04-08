@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   FileSpreadsheet,
   Check,
@@ -8,9 +8,12 @@ import {
   Terminal,
   X,
   FolderCheck,
-  Database
+  Database,
+  ClockArrowUp
 } from 'lucide-react'
 import { Button } from '@renderer/components/ui/button'
+import { cargarSimple, cargarSync } from '../lib/api'
+import { useLogs } from '../hooks/useLogs'
 
 const archivos = [
   { nombre: 'Posiciones.csv', id: 1 },
@@ -21,37 +24,27 @@ const archivos = [
   { nombre: 'Movimientos_ANAM_EMPLEADOS.xlsx', id: 'movimientos_anam_empleados' }
 ]
 
-const DRF_BASE_URL = 'https://sig-desktop-api.onrender.com'
-const CHUNK_SIZE = 500
-
 function PanelDescargas() {
   const [seleccionados, setSeleccionados] = useState(new Set())
   const [carpeta, setCarpeta] = useState(() => localStorage.getItem('carpeta_descarga') ?? null)
   const [headless, setHeadless] = useState(true)
   const [detectarErrores, setDetectarErrores] = useState(true)
   const [subirABD, setSubirABD] = useState(true)
-  const [logs, setLogs] = useState([])
+  const [cargarHistorial, setCargarHistorial] = useState(false)
   const [descargando, setDescargando] = useState(false)
   const [completado, setCompletado] = useState(false)
   const [cancelado, setCancelado] = useState(false)
   const [subiendoBD, setSubiendoBD] = useState(false)
   const [downloadDir, setDownloadDir] = useState(null)
-  const [resultadosBD, setResultadosBD] = useState({}) // { label: { insertadas, eliminados } }
-  const logsEndRef = useRef(null)
+  const [resultadosBD, setResultadosBD] = useState({})
   const canceladoRef = useRef(false)
 
+  const { logs, agregarLog, logsEndRef, containerRef } = useLogs()
+
   useEffect(() => {
-    const cleanup = window.api.onDescargaLog((msg) => {
-      setLogs((prev) => [...prev, msg.trim()])
-    })
+    const cleanup = window.api.onDescargaLog((msg) => agregarLog(msg))
     return cleanup
-  }, [])
-
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [logs])
-
-  const agregarLog = (msg) => setLogs((prev) => [...prev, msg])
+  }, [agregarLog])
 
   const elegirCarpeta = async () => {
     const ruta = await window.api.seleccionarCarpeta()
@@ -61,241 +54,138 @@ function PanelDescargas() {
     }
   }
 
-  const toggle = (id) => {
+  const toggle = useCallback((id) => {
     setSeleccionados((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
-  }
+  }, [])
 
-  const toggleTodos = () => {
+  const toggleTodos = useCallback(() => {
     if (seleccionados.size === archivos.length) {
       setSeleccionados(new Set())
     } else {
       setSeleccionados(new Set(archivos.map((a) => a.id)))
     }
-  }
+  }, [seleccionados.size])
 
-  const handleCancelar = async () => {
+  const handleCancelar = useCallback(async () => {
     canceladoRef.current = true
     await window.api.cancelarDescarga()
-  }
+  }, [])
 
-  const handleSubirABD = async (dir) => {
-    setSubiendoBD(true)
-    setResultadosBD({})
-    agregarLog('Iniciando carga a base de datos...')
+  const handleSubirABD = useCallback(
+    async (dir) => {
+      setSubiendoBD(true)
+      setResultadosBD({})
+      agregarLog('Iniciando carga a base de datos...')
 
-    // ── Helper: TRUNCAR → INSERT chunks → DEDUP ──────────────────────────────
-    const cargarSimple = async (rows, endpoint, truncarTabla, label) => {
-      const total = rows.length
-      const totalChunks = Math.ceil(total / CHUNK_SIZE)
+      try {
+        const corregidosDir = `${dir}/Corregidos`
+        const enCorregidos = await window.api.listarDirectorio(corregidosDir).catch(() => [])
+        const enRaiz = await window.api.listarDirectorio(dir)
 
-      agregarLog(`  Truncando ${truncarTabla}...`)
-      const tRes = await fetch(`${DRF_BASE_URL}/api/truncar-tabla/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tabla: truncarTabla })
-      })
-      const tData = await tRes.json()
-      if (!tRes.ok || !tData.ok) {
-        agregarLog(`ERROR al truncar ${truncarTabla}: ${tData.error ?? 'Error'}`)
-        return
-      }
+        let rutaPosiciones = null
+        if (enCorregidos.includes('zafiro_info_Posiciones_Corregido.csv'))
+          rutaPosiciones = `${corregidosDir}/zafiro_info_Posiciones_Corregido.csv`
+        else if (enRaiz.includes('zafiro_info_Posiciones.csv'))
+          rutaPosiciones = `${dir}/zafiro_info_Posiciones.csv`
 
-      agregarLog(`  ${total} filas — ${totalChunks} lote(s)`)
-      let insertadas = 0
-      for (let i = 0; i < total; i += CHUNK_SIZE) {
-        const chunkNum = Math.floor(i / CHUNK_SIZE) + 1
-        const res = await fetch(`${DRF_BASE_URL}${endpoint}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: rows.slice(i, i + CHUNK_SIZE) })
-        })
-        const data = await res.json()
-        if (!res.ok || !data.ok) {
-          agregarLog(`ERROR BD ${label} [lote ${chunkNum}]: ${data.error ?? 'Error desconocido'}`)
-          return
+        if (rutaPosiciones) {
+          agregarLog('Leyendo Posiciones...')
+          const rows = await window.api.leerCsvRows(rutaPosiciones)
+          const result = await cargarSimple(
+            rows,
+            '/api/bulk-insert-movpos/',
+            'MOV_POS',
+            'Posiciones',
+            agregarLog
+          )
+          setResultadosBD((prev) => ({ ...prev, Posiciones: result }))
+        } else {
+          agregarLog('AVISO: Posiciones.csv no encontrado — se omite.')
         }
-        insertadas += data.insertadas ?? rows.slice(i, i + CHUNK_SIZE).length
-        agregarLog(
-          `  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`
-        )
-      }
 
-      agregarLog(`  Eliminando duplicados exactos...`)
-      const dRes = await fetch(`${DRF_BASE_URL}/api/deduplicar-tabla/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tabla: truncarTabla })
-      })
-      const dData = await dRes.json()
-      if (!dRes.ok || !dData.ok) {
-        agregarLog(`ERROR al deduplicar ${truncarTabla}: ${dData.error ?? 'Error'}`)
-        return
-      }
-      const eliminados = dData.eliminados ?? 0
+        let rutaFamiliares = null
+        if (enCorregidos.includes('zafiro_info_Familiares_Corregido.csv'))
+          rutaFamiliares = `${corregidosDir}/zafiro_info_Familiares_Corregido.csv`
+        else if (enRaiz.includes('zafiro_info_Familiares.csv'))
+          rutaFamiliares = `${dir}/zafiro_info_Familiares.csv`
 
-      agregarLog(`✓ ${label} cargado.`)
-      agregarLog(
-        `  Insertadas: ${insertadas.toLocaleString()} — Duplicados eliminados: ${eliminados.toLocaleString()} — En tabla: ${(insertadas - eliminados).toLocaleString()}`
-      )
-      setResultadosBD((prev) => ({ ...prev, [label]: { insertadas, eliminados } }))
-    }
-
-    // ── Helper: INSERT chunks via SP (sin truncar) ────────────────────────────
-    const cargarSync = async (rows, endpoint, label) => {
-      const anioActual = new Date().getFullYear()
-
-      // ELIMINAR REGISTROS DE MOVIMIENTOS ANTES DE INSERTAR LOS NUEVOS DEL AÑO ACTUAL
-      const eliminar_registros_fetch = await fetch(
-        `${DRF_BASE_URL}/api/eliminar-registros-movimientos/`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ año: anioActual })
+        if (rutaFamiliares) {
+          agregarLog('Leyendo Familiares...')
+          const rows = await window.api.leerCsvRows(rutaFamiliares)
+          const result = await cargarSimple(
+            rows,
+            '/api/cargar-familiar-csv/',
+            'FAMILIAR',
+            'Familiares',
+            agregarLog
+          )
+          setResultadosBD((prev) => ({ ...prev, Familiares: result }))
+        } else {
+          agregarLog('AVISO: Familiares.csv no encontrado — se omite.')
         }
-      )
 
-      const eliminar_registros_response = await eliminar_registros_fetch.json()
-      if (!eliminar_registros_response.ok) {
-        agregarLog(
-          `ERROR al eliminar registros: ${eliminar_registros_response.error ?? 'Error desconocido'}`
-        )
-        return false
-      }
+        const esExcel = (f) =>
+          !f.startsWith('~$') &&
+          !f.startsWith('.~lock') &&
+          ['.xlsx', '.xls'].includes(f.slice(f.lastIndexOf('.')).toLowerCase())
 
-      const total = rows.length
-      const totalChunks = Math.ceil(total / CHUNK_SIZE)
-      let insertadas = 0
+        const excelCorregido = enCorregidos.find(esExcel)
+        const excelRaiz = enRaiz.find(esExcel)
+        const rutaMovimientos = excelCorregido
+          ? `${corregidosDir}/${excelCorregido}`
+          : excelRaiz
+            ? `${dir}/${excelRaiz}`
+            : null
 
-      agregarLog(`  ${total} filas — ${totalChunks} lote(s)`)
-      for (let i = 0; i < total; i += CHUNK_SIZE) {
-        const chunkNum = Math.floor(i / CHUNK_SIZE) + 1
-        const res = await fetch(`${DRF_BASE_URL}${endpoint}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: rows.slice(i, i + CHUNK_SIZE), año: anioActual })
-        })
-        const data = await res.json()
-        if (!res.ok || !data.ok) {
-          agregarLog(`ERROR BD ${label} [lote ${chunkNum}]: ${data.error ?? 'Error desconocido'}`)
-          return false
+        if (rutaMovimientos) {
+          agregarLog('Leyendo Movimientos.xlsx...')
+          const rows = await window.api.leerExcelRows(rutaMovimientos)
+          const result = await cargarSync(
+            rows,
+            '/api/insertar-movimientos/',
+            'Movimientos',
+            agregarLog
+          )
+          setResultadosBD((prev) => ({ ...prev, Movimientos: result }))
+        } else {
+          agregarLog('AVISO: Movimientos.xlsx no encontrado — se omite.')
         }
-        insertadas += data.insertadas ?? rows.slice(i, i + CHUNK_SIZE).length
-        agregarLog(
-          `  Lote ${chunkNum}/${totalChunks}: filas ${i + 1}–${Math.min(i + CHUNK_SIZE, total)} OK`
-        )
+
+        let rutaDomicilios = null
+        if (enCorregidos.includes('zafiro_info_Escolaridad_Corregido.csv'))
+          rutaDomicilios = `${corregidosDir}/zafiro_info_Escolaridad_Corregido.csv`
+        else if (enRaiz.includes('zafiro_info_Escolaridad.csv'))
+          rutaDomicilios = `${dir}/zafiro_info_Escolaridad.csv`
+
+        if (rutaDomicilios) {
+          agregarLog('Leyendo Escolaridad...')
+          const rows = await window.api.leerCsvRows(rutaDomicilios)
+          const result = await cargarSimple(
+            rows,
+            '/api/cargar-domicilios-csv/',
+            'domicilios',
+            'Escolaridad',
+            agregarLog
+          )
+          setResultadosBD((prev) => ({ ...prev, Escolaridad: result }))
+        } else {
+          agregarLog('AVISO: Escolaridad.csv no encontrado — se omite.')
+        }
+      } catch (err) {
+        agregarLog(`ERROR BD: ${err.message}`)
+      } finally {
+        setSubiendoBD(false)
       }
-      agregarLog(`✓ ${label} cargado.`)
+    },
+    [agregarLog]
+  )
 
-      // ELIMINAR DUPLICADOS EXACTOS DE MOV_TOTAL
-      agregarLog('Eliminando Duplicados de registros de Movimientos...')
-
-      const dRes = await fetch(`${DRF_BASE_URL}/api/deduplicar-tabla/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tabla: 'MOV_TOTAL' })
-      })
-
-      const dData = await dRes.json()
-      if (!dRes.ok || !dData.ok) {
-        agregarLog(`ERROR al deduplicar MOV_TOTAL: ${dData.error ?? 'Error'}`)
-        return false
-      }
-      const eliminados = dData.eliminados ?? 0
-
-      agregarLog(`✓ MOV_TOTAL cargado.`)
-      agregarLog(
-        `  Insertadas: ${insertadas.toLocaleString()} — Duplicados eliminados: ${eliminados.toLocaleString()}`
-      )
-
-      setResultadosBD((prev) => ({ ...prev, [label]: { insertadas, eliminados } }))
-      return true
-    }
-
-    try {
-      const corregidosDir = `${dir}/Corregidos`
-      const enCorregidos = await window.api.listarDirectorio(corregidosDir).catch(() => [])
-      const enRaiz = await window.api.listarDirectorio(dir)
-
-      // --- POSICIONES ---
-      let rutaPosiciones = null
-      if (enCorregidos.includes('zafiro_info_Posiciones_Corregido.csv'))
-        rutaPosiciones = `${corregidosDir}/zafiro_info_Posiciones_Corregido.csv`
-      else if (enRaiz.includes('zafiro_info_Posiciones.csv'))
-        rutaPosiciones = `${dir}/zafiro_info_Posiciones.csv`
-
-      if (rutaPosiciones) {
-        agregarLog('Leyendo Posiciones...')
-        const rows = await window.api.leerCsvRows(rutaPosiciones)
-        await cargarSimple(rows, '/api/bulk-insert-movpos/', 'MOV_POS', 'Posiciones')
-      } else {
-        agregarLog('AVISO: Posiciones.csv no encontrado — se omite.')
-      }
-
-      // --- FAMILIARES ---
-      let rutaFamiliares = null
-      if (enCorregidos.includes('zafiro_info_Familiares_Corregido.csv'))
-        rutaFamiliares = `${corregidosDir}/zafiro_info_Familiares_Corregido.csv`
-      else if (enRaiz.includes('zafiro_info_Familiares.csv'))
-        rutaFamiliares = `${dir}/zafiro_info_Familiares.csv`
-
-      if (rutaFamiliares) {
-        agregarLog('Leyendo Familiares...')
-        const rows = await window.api.leerCsvRows(rutaFamiliares)
-        await cargarSimple(rows, '/api/cargar-familiar-csv/', 'FAMILIAR', 'Familiares')
-      } else {
-        agregarLog('AVISO: Familiares.csv no encontrado — se omite.')
-      }
-
-      // --- MOVIMIENTOS (sync SP, sin truncar) ---
-      const esExcel = (f) =>
-        !f.startsWith('~$') &&
-        !f.startsWith('.~lock') &&
-        ['.xlsx', '.xls'].includes(f.slice(f.lastIndexOf('.')).toLowerCase())
-
-      const excelCorregido = enCorregidos.find(esExcel)
-      const excelRaiz = enRaiz.find(esExcel)
-      const rutaMovimientos = excelCorregido
-        ? `${corregidosDir}/${excelCorregido}`
-        : excelRaiz
-          ? `${dir}/${excelRaiz}`
-          : null
-
-      if (rutaMovimientos) {
-        agregarLog('Leyendo Movimientos.xlsx...')
-        const rows = await window.api.leerExcelRows(rutaMovimientos)
-        await cargarSync(rows, '/api/insertar-movimientos/', 'Movimientos')
-      } else {
-        agregarLog('AVISO: Movimientos.xlsx no encontrado — se omite.')
-      }
-
-      // --- ESCOLARIDAD / DOMICILIOS ---
-      let rutaDomicilios = null
-      if (enCorregidos.includes('zafiro_info_Escolaridad_Corregido.csv'))
-        rutaDomicilios = `${corregidosDir}/zafiro_info_Escolaridad_Corregido.csv`
-      else if (enRaiz.includes('zafiro_info_Escolaridad.csv'))
-        rutaDomicilios = `${dir}/zafiro_info_Escolaridad.csv`
-
-      if (rutaDomicilios) {
-        agregarLog('Leyendo Escolaridad...')
-        const rows = await window.api.leerCsvRows(rutaDomicilios)
-        await cargarSimple(rows, '/api/cargar-domicilios-csv/', 'domicilios', 'Escolaridad')
-      } else {
-        agregarLog('AVISO: Escolaridad.csv no encontrado — se omite.')
-      }
-    } catch (err) {
-      agregarLog(`ERROR BD: ${err.message}`)
-    } finally {
-      setSubiendoBD(false)
-    }
-  }
-
-  const handleDescargarSeleccionados = async () => {
+  const handleDescargarSeleccionados = useCallback(async () => {
     if (!carpeta) return
-    setLogs([])
     setDescargando(true)
     setCompletado(false)
     setCancelado(false)
@@ -330,15 +220,23 @@ function PanelDescargas() {
       agregarLog('Proceso terminado.')
 
       if (subirABD) await handleSubirABD(dir)
-    } catch {
+
+      if (cargarHistorial && seleccionados.has(1)) {
+        agregarLog('Iniciando carga de Historial de Posiciones...')
+        await window.api.iniciarHistorialPos(dir, headless)
+        agregarLog('Historial de Posiciones completado.')
+      }
+    } catch (err) {
       if (canceladoRef.current) {
         setCancelado(true)
         agregarLog('Proceso cancelado.')
+      } else {
+        agregarLog(`ERROR: ${err.message}`)
       }
     } finally {
       setDescargando(false)
     }
-  }
+  }, [carpeta, seleccionados, headless, detectarErrores, subirABD, cargarHistorial, agregarLog, handleSubirABD])
 
   const todosSeleccionados = seleccionados.size === archivos.length
 
@@ -472,6 +370,29 @@ function PanelDescargas() {
               Subir a base de datos
             </button>
           </>
+
+          {seleccionados.has(1) && (
+            <>
+              <div className="w-px h-4 bg-white/10" />
+
+              {/* Toggle: cargar historial de posiciones */}
+              <button
+                onClick={() => setCargarHistorial((v) => !v)}
+                className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
+                title="Cargar historial de posiciones al finalizar"
+              >
+                <div
+                  className={`relative w-8 h-4 rounded-full transition-colors duration-200 ${cargarHistorial ? 'bg-violet-600' : 'bg-stone-600'}`}
+                >
+                  <div
+                    className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 ${cargarHistorial ? 'left-4' : 'left-0.5'}`}
+                  />
+                </div>
+                <ClockArrowUp size={12} className={cargarHistorial ? 'text-violet-400' : 'text-stone-500'} />
+                Cargar historial de posiciones
+              </button>
+            </>
+          )}
 
           {/* Seleccionar todos */}
           <button
@@ -607,18 +528,23 @@ function PanelDescargas() {
               </span>
             )}
           </div>
-          <div className="bg-black/40 border border-white/10 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs resize-y min-h-32 max-h-[80vh]">
+          <div
+            ref={containerRef}
+            className="bg-black/40 border border-white/10 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs resize-y min-h-32 max-h-[80vh]"
+          >
             {logs.map((line, i) => (
               <p
                 key={i}
                 className={`whitespace-pre-wrap leading-relaxed ${
-                  line.startsWith('ERROR')
+                  line.startsWith('ERROR') || line.startsWith('FALLO')
                     ? 'text-red-400'
                     : line.startsWith('Proceso cancelado')
                       ? 'text-amber-400'
-                      : line.startsWith('✓')
-                        ? 'text-emerald-400'
-                        : 'text-green-400'
+                      : line.startsWith('AVISO')
+                        ? 'text-amber-400'
+                        : line.startsWith('✓')
+                          ? 'text-emerald-400'
+                          : 'text-green-400'
                 }`}
               >
                 <span className="text-slate-600 select-none mr-2">{`>`}</span>
