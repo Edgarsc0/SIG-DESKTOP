@@ -35,8 +35,9 @@ function createWindow() {
         'Content-Security-Policy': [
           "default-src 'self'; " +
             "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+            'worker-src blob:; ' +
             "style-src 'self' 'unsafe-inline'; " +
-            "connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:8080 http://localhost:8080 https://sig-desktop-api.onrender.com;"
+            "connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:8080 http://localhost:8080 https://sig-desktop-api.onrender.com ws://localhost:5173 ws://127.0.0.1:5173;"
         ]
       }
     })
@@ -208,7 +209,7 @@ app.whenReady().then(() => {
     activeChildren.clear()
   })
 
-  ipcMain.handle('iniciar-historial-pos', async (event, { downloadDir, headless }) => {
+  ipcMain.handle('iniciar-historial-pos', async (event, { downloadDir, headless, workers }) => {
     const scriptPath = is.dev
       ? join(__dirname, '../../resources/scripts/cargarHistorialPos.js')
       : join(process.resourcesPath, 'scripts/cargarHistorialPos.js')
@@ -220,7 +221,13 @@ app.whenReady().then(() => {
 
     await new Promise((resolve) => {
       const child = spawn(process.execPath, [scriptPath, downloadDir, headless ? '1' : '0'], {
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
+        env: {
+          ...process.env,
+          ELECTRON_RUN_AS_NODE: '1',
+          NODE_PATH: nodeModulesPath,
+          NUM_WORKERS: workers.toString(),
+          VITE_API_URL: import.meta.env.VITE_API_URL
+        }
       })
       activeChildren.add(child)
 
@@ -258,7 +265,12 @@ app.whenReady().then(() => {
           : `${join(process.resourcesPath, 'app.asar.unpacked/node_modules')}${sep}${join(process.resourcesPath, 'app.asar/node_modules')}`
 
         const child = spawn(process.execPath, [scriptPath, id, downloadDir, headless ? '1' : '0'], {
-          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
+          env: {
+            ...process.env,
+            ELECTRON_RUN_AS_NODE: '1',
+            NODE_PATH: nodeModulesPath,
+            VITE_API_URL: import.meta.env.VITE_API_URL
+          }
         })
         activeChildren.add(child)
 
@@ -290,7 +302,12 @@ app.whenReady().then(() => {
 
       await new Promise((resolve, reject) => {
         const child = spawn(process.execPath, [scriptPath, downloadDir, headless ? '1' : '0'], {
-          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
+          env: {
+            ...process.env,
+            ELECTRON_RUN_AS_NODE: '1',
+            NODE_PATH: nodeModulesPath,
+            VITE_API_URL: import.meta.env.VITE_API_URL
+          }
         })
         activeChildren.add(child)
 
@@ -312,7 +329,12 @@ app.whenReady().then(() => {
 
       await new Promise((resolve, reject) => {
         const child = spawn(process.execPath, [scriptPath, downloadDir, headless ? '1' : '0'], {
-          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: nodeModulesPath }
+          env: {
+            ...process.env,
+            ELECTRON_RUN_AS_NODE: '1',
+            NODE_PATH: nodeModulesPath,
+            VITE_API_URL: import.meta.env.VITE_API_URL
+          }
         })
         activeChildren.add(child)
 

@@ -3,7 +3,6 @@ const edge = require('selenium-webdriver/edge')
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
-const readline = require('readline')
 
 const ZAFIRO_USER = process.env.ZAFIRO_USER || 'RAAO81BA'
 const ZAFIRO_PASS = process.env.ZAFIRO_PASS || 'M4rzo.2026'
@@ -17,24 +16,14 @@ if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true }
 
 const progresoGlobal = { procesados: 0, fallos: 0, total: 0 }
 
-function clearLine() {
-  readline.cursorTo(process.stdout, 0)
-  readline.clearLine(process.stdout, 0)
-}
-
 function barraGlobal() {
   if (progresoGlobal.total === 0) return ''
-  const BAR_WIDTH = 40
-  const pct = progresoGlobal.procesados / progresoGlobal.total
-  const filled = Math.round(pct * BAR_WIDTH)
-  const bar = '█'.repeat(filled) + '░'.repeat(BAR_WIDTH - filled)
-  const pctStr = (pct * 100).toFixed(1).padStart(6)
-  return `\x1b[32m${bar}\x1b[0m ${pctStr}% | ${progresoGlobal.procesados}/${progresoGlobal.total} | Fallos: ${progresoGlobal.fallos}`
+  const pct = (progresoGlobal.procesados / progresoGlobal.total) * 100
+  return `${pct.toFixed(1)}% | ${progresoGlobal.procesados}/${progresoGlobal.total} | Fallos: ${progresoGlobal.fallos}`
 }
 
 function actualizarProgresoGlobal() {
-  clearLine()
-  process.stdout.write(barraGlobal())
+  console.log(barraGlobal())
 }
 
 // ─── XPaths ───────────────────────────────────────────────────────────────────
@@ -189,7 +178,7 @@ async function navegarAHistorial(driver) {
   await driver.wait(until.elementLocated(By.xpath(XPATH_INPUT_POS)), 15000)
 }
 
-async function procesarPosicion(driver, noPos, workerId, idx, total) {
+async function procesarPosicion(driver, noPos) {
   const input = await driver.findElement(By.xpath(XPATH_INPUT_POS))
   await input.clear()
   await input.sendKeys(noPos)
@@ -235,49 +224,68 @@ async function procesarPosicion(driver, noPos, workerId, idx, total) {
   }
 }
 
-async function workerProcesarPosiciones(posiciones, workerId, numWorkers) {
+async function workerProcesarPosiciones(posiciones, workerId) {
   const driver = createDriver()
   const workerFallos = []
+  const buffer = []
+  let wAttempted = 0
+  let wFallos = 0
+  const wTotal = posiciones.length
+
+  function emitWorkerProg() {
+    const pct = wTotal > 0 ? ((wAttempted / wTotal) * 100).toFixed(1) : '0.0'
+    process.stdout.write(`[WORKER_PROG:${workerId}:${pct}:${wAttempted}:${wTotal}:${wFallos}]\n`)
+  }
+
+  async function flushBuffer() {
+    if (buffer.length === 0) return
+    await flushBatch(buffer.splice(0))
+  }
 
   try {
     await login(driver)
     await navegarAHistorial(driver)
 
-    const workerTotal = posiciones.length
-
     for (let i = 0; i < posiciones.length; i++) {
       const noPos = posiciones[i]
 
       try {
-        const resultado = await procesarPosicion(driver, noPos, workerId, i, workerTotal)
+        const resultado = await procesarPosicion(driver, noPos)
 
         if (resultado.ok) {
-          await flushBatch([resultado.data])
+          buffer.push(resultado.data)
+          if (buffer.length >= BATCH_SIZE) await flushBuffer()
           progresoGlobal.procesados++
         } else {
           workerFallos.push({ noPos, error: resultado.error })
           progresoGlobal.fallos++
+          wFallos++
         }
+        wAttempted++
         actualizarProgresoGlobal()
+        emitWorkerProg()
 
         await clickLinkByText(driver, 'Historial de Posición', 20000)
-        await driver.sleep(2000)
         await switchToWorkFrame(driver, 'ptifrmtgtframe')
         await driver.wait(until.elementLocated(By.xpath(XPATH_INPUT_POS)), 15000)
       } catch (err) {
         workerFallos.push({ noPos, error: err.message })
         progresoGlobal.fallos++
         progresoGlobal.procesados++
+        wFallos++
+        wAttempted++
         actualizarProgresoGlobal()
+        emitWorkerProg()
 
         try {
           await clickLinkByText(driver, 'Historial de Posición', 20000)
-          await driver.sleep(2000)
           await switchToWorkFrame(driver, 'ptifrmtgtframe')
           await driver.wait(until.elementLocated(By.xpath(XPATH_INPUT_POS)), 15000)
         } catch (_) {}
       }
     }
+
+    await flushBuffer()
   } finally {
     await driver.quit()
   }
@@ -302,10 +310,10 @@ async function runWorkers(posiciones) {
     }
   }
 
-  console.log(`\nIniciando ${chunks.length} workers en paralelo...\n`)
+  console.log(`[WORKERS:${chunks.length}] Iniciando ${chunks.length} workers en paralelo...\n`)
   actualizarProgresoGlobal()
 
-  const promises = chunks.map((chunk, idx) => workerProcesarPosiciones(chunk, idx, chunks.length))
+  const promises = chunks.map((chunk, idx) => workerProcesarPosiciones(chunk, idx))
   const results = await Promise.all(promises)
 
   clearLine()
