@@ -18,8 +18,9 @@ const progresoGlobal = { procesados: 0, fallos: 0, total: 0 }
 
 function barraGlobal() {
   if (progresoGlobal.total === 0) return ''
-  const pct = (progresoGlobal.procesados / progresoGlobal.total) * 100
-  return `${pct.toFixed(1)}% | ${progresoGlobal.procesados}/${progresoGlobal.total} | Fallos: ${progresoGlobal.fallos}`
+  const intentados = progresoGlobal.procesados + progresoGlobal.fallos
+  const pct = (intentados / progresoGlobal.total) * 100
+  return `${pct.toFixed(1)}% | ${intentados}/${progresoGlobal.total} | Fallos: ${progresoGlobal.fallos}`
 }
 
 function actualizarProgresoGlobal() {
@@ -316,7 +317,6 @@ async function runWorkers(posiciones) {
   const promises = chunks.map((chunk, idx) => workerProcesarPosiciones(chunk, idx))
   const results = await Promise.all(promises)
 
-  clearLine()
   console.log(barraGlobal())
 
   let allFallos = []

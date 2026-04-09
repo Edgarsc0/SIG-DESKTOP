@@ -99,20 +99,23 @@ function CargarHistorialPos() {
   const { logs, agregarLog, logsEndRef, containerRef } = useLogs()
 
   useEffect(() => {
-    const cleanup = window.api.onDescargaLog((msg) => {
-      const wp = parseWorkerProg(msg)
-      if (wp) {
-        setWorkerProgs((prev) => ({ ...prev, [wp.id]: wp }))
-        return
+    const cleanup = window.api.onDescargaLog((chunk) => {
+      const lines = chunk.split('\n').map((l) => l.trim()).filter(Boolean)
+      for (const line of lines) {
+        const wp = parseWorkerProg(line)
+        if (wp) {
+          setWorkerProgs((prev) => ({ ...prev, [wp.id]: wp }))
+          continue
+        }
+        const p = parseProgreso(line)
+        if (p) {
+          setProgreso(p)
+          continue
+        }
+        const wCount = parseWorkers(line)
+        if (wCount) setNumWorkers(wCount)
+        else agregarLog(line)
       }
-      const p = parseProgreso(msg)
-      if (p) {
-        setProgreso(p)
-        return
-      }
-      const wCount = parseWorkers(msg)
-      if (wCount) setNumWorkers(wCount)
-      agregarLog(msg)
     })
     return cleanup
   }, [agregarLog])
